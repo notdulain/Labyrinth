@@ -82,8 +82,14 @@ public class SimpleThirdPersonController : MonoBehaviour
 
         if (grounded && Input.GetKeyDown(KeyCode.Space))
         {
+            if (animator != null)
+            {
+                animator.ResetTrigger(JumpHash);
+                animator.SetTrigger(JumpHash);
+                animator.CrossFadeInFixedTime(JumpHash, 0.02f, 0, 0f);
+            }
+
             verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
-            if (animator != null) animator.SetTrigger(JumpHash);
         }
 
         verticalVelocity += gravity * Time.deltaTime;
