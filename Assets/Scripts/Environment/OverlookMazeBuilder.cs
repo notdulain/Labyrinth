@@ -1,9 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
-
-#if UNITY_EDITOR
 using UnityEditor;
-#endif
 
 /// <summary>
 /// Overlook Hotel Hedge Maze - Procedural Builder
