@@ -7,7 +7,8 @@ using System.Collections.Generic;
 public class DemonDogController : MonoBehaviour
 {
     [SerializeField] private float moveSpeed = 3f;
-    [SerializeField] private float rotationSpeed = 10f;
+    [SerializeField] private float rotationSpeed = 8f;
+    [SerializeField] private float arrivalThreshold = 0.1f;
     [SerializeField] private bool useMockPathOnStart = true;
 
     private readonly List<Vector3> path = new List<Vector3>();
@@ -53,10 +54,10 @@ public class DemonDogController : MonoBehaviour
         if (flatDirection.sqrMagnitude > 0.0001f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(flatDirection.normalized);
-            transform.rotation = Quaternion.RotateTowards(
+            transform.rotation = Quaternion.Slerp(
                 transform.rotation,
                 targetRotation,
-                rotationSpeed * Time.deltaTime * 180f);
+                rotationSpeed * Time.deltaTime);
         }
 
         transform.position = Vector3.MoveTowards(
@@ -64,7 +65,7 @@ public class DemonDogController : MonoBehaviour
             target,
             moveSpeed * Time.deltaTime);
 
-        if (Vector3.Distance(transform.position, target) < 0.02f)
+        if (Vector3.Distance(transform.position, target) < arrivalThreshold)
         {
             currentWaypointIndex++;
         }
