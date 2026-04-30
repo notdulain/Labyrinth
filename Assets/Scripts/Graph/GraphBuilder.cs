@@ -1,26 +1,25 @@
-using System.Collections.Generic;
 using UnityEngine;
+using System.Collections.Generic;
 
 public class GraphBuilder : MonoBehaviour
 {
     public static GraphBuilder Instance;
 
     [Header("Grid Settings")]
-    public int gridWidth = 10;
-    public int gridDepth = 10;
-    public float cellSize = 1f;
-    public Vector3 gridOrigin = Vector3.zero;
+    public Vector3 gridOrigin = new Vector3(-26.2f, 0f, -35.8f);
+    public float cellSize = 2.85f;
+    public int gridCols = 19;
+    public int gridRows = 26;
+
+    [Header("Wall Detection")]
     public LayerMask wallLayer;
+    public float checkBoxRadius = 1.0f;
 
     public Dictionary<Vector3, List<Vector3>> AdjacencyList { get; private set; }
 
     void Awake()
     {
         Instance = this;
-    }
-
-    void Start()
-    {
         BuildGraph();
     }
 
@@ -28,67 +27,67 @@ public class GraphBuilder : MonoBehaviour
     {
         AdjacencyList = new Dictionary<Vector3, List<Vector3>>();
 
-        // Pass 1: collect walkable nodes
-        for (int x = 0; x < gridWidth; x++)
+        List<Vector3> walkableNodes = new List<Vector3>();
+        for (int col = 0; col < gridCols; col++)
         {
-            for (int z = 0; z < gridDepth; z++)
+            for (int row = 0; row < gridRows; row++)
             {
-                Vector3 worldPos = GridToWorld(x, z);
+                Vector3 worldPos = GridToWorld(col, row);
                 if (IsWalkable(worldPos))
-                    AdjacencyList[worldPos] = new List<Vector3>();
+                    walkableNodes.Add(worldPos);
             }
         }
 
-        // Pass 2: connect 4-directional neighbours
-        int[] dx = { 1, -1, 0, 0 };
-        int[] dz = { 0, 0, 1, -1 };
-
-        foreach (Vector3 node in new List<Vector3>(AdjacencyList.Keys))
+        foreach (var node in walkableNodes)
         {
-            int x = Mathf.RoundToInt((node.x - gridOrigin.x) / cellSize);
-            int z = Mathf.RoundToInt((node.z - gridOrigin.z) / cellSize);
+            AdjacencyList[node] = new List<Vector3>();
+            Vector3[] neighbours = {
+                node + new Vector3(cellSize, 0, 0),
+                node + new Vector3(-cellSize, 0, 0),
+                node + new Vector3(0, 0, cellSize),
+                node + new Vector3(0, 0, -cellSize)
+            };
 
-            for (int i = 0; i < 4; i++)
+            foreach (var n in neighbours)
             {
-                int nx = x + dx[i];
-                int nz = z + dz[i];
-                if (nx < 0 || nx >= gridWidth || nz < 0 || nz >= gridDepth) continue;
-
-                Vector3 neighbour = GridToWorld(nx, nz);
-                if (AdjacencyList.ContainsKey(neighbour))
-                    AdjacencyList[node].Add(neighbour);
+                foreach (var existing in walkableNodes)
+                {
+                    if (Vector3.Distance(n, existing) < 0.1f)
+                    {
+                        AdjacencyList[node].Add(existing);
+                        break;
+                    }
+                }
             }
         }
 
-        Debug.Log($"[GraphBuilder] Built graph: {AdjacencyList.Count} walkable nodes.");
-        PrintAdjacencyList();
+        Debug.Log($"[GraphBuilder] Built graph: {AdjacencyList.Count} walkable nodes");
+    }
+
+    Vector3 GridToWorld(int col, int row)
+    {
+        return new Vector3(
+            gridOrigin.x + col * cellSize + cellSize * 0.5f,
+            0.5f,
+            gridOrigin.z + row * cellSize + cellSize * 0.5f
+        );
     }
 
     bool IsWalkable(Vector3 worldPos)
     {
-        // Sample at Y=0.5 to detect wall colliders standing on the floor
-        Vector3 checkCenter = new Vector3(worldPos.x, 0.5f, worldPos.z);
-        Vector3 halfExtents = new Vector3(cellSize * 0.4f, 0.4f, cellSize * 0.4f);
-        return !Physics.CheckBox(checkCenter, halfExtents, Quaternion.identity, wallLayer);
+        Vector3 halfExtents = Vector3.one * (checkBoxRadius * 0.5f);
+        return !Physics.CheckBox(worldPos, halfExtents, Quaternion.identity, wallLayer);
     }
 
-    Vector3 GridToWorld(int x, int z)
+    void OnDrawGizmos()
     {
-        return new Vector3(gridOrigin.x + x * cellSize, 0f, gridOrigin.z + z * cellSize);
-    }
-
-    void PrintAdjacencyList()
-    {
-        int shown = 0;
+        if (AdjacencyList == null) return;
+        Gizmos.color = Color.green;
         foreach (var kvp in AdjacencyList)
         {
-            if (shown >= 20)
-            {
-                Debug.Log("[GraphBuilder] ... (truncated — attach debugger for full output)");
-                break;
-            }
-            Debug.Log($"  {kvp.Key} -> [{string.Join(", ", kvp.Value)}]");
-            shown++;
+            Gizmos.DrawSphere(kvp.Key, 0.2f);
+            foreach (var neighbour in kvp.Value)
+                Gizmos.DrawLine(kvp.Key, neighbour);
         }
     }
 }
