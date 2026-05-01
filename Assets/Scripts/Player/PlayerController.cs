@@ -1,50 +1,99 @@
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement")]
-    public float moveSpeed = 5f;
-
-    [Header("Rotation")]
-    public bool rotateToMovement = true;
+    public float moveSpeed = 4f;
     public float rotationSpeed = 12f;
+    public float gravity = -25f;
+    public float groundedStickForce = -2f;
 
-    private Rigidbody playerRigidbody;
+    [Header("Safety")]
+    public float maxAllowedYPosition = 5f;
+
+    private CharacterController characterController;
     private Vector3 moveDirection;
+    private float verticalVelocity;
+    private float startingYPosition;
 
     private void Awake()
     {
-        playerRigidbody = GetComponent<Rigidbody>();
+        characterController = GetComponent<CharacterController>();
+        startingYPosition = transform.position.y;
     }
 
     private void Update()
     {
+        ReadMovementInput();
+        ApplyGravity();
+        MovePlayer();
+        RotateTowardMovement();
+        ClampUnexpectedHeight();
+    }
+
+    private void ReadMovementInput()
+    {
         float horizontalInput = Input.GetAxisRaw("Horizontal");
         float verticalInput = Input.GetAxisRaw("Vertical");
 
+        Vector3 inputDirection = new Vector3(horizontalInput, 0f, verticalInput);
+
+        if (inputDirection.sqrMagnitude > 1f)
+        {
+            inputDirection.Normalize();
+        }
+
         moveDirection = new Vector3(
-            horizontalInput + verticalInput,
+            inputDirection.x + inputDirection.z,
             0f,
-            verticalInput - horizontalInput
+            inputDirection.z - inputDirection.x
         ).normalized;
     }
 
-    private void FixedUpdate()
+    private void ApplyGravity()
     {
-        Vector3 nextPosition = playerRigidbody.position + moveDirection * moveSpeed * Time.fixedDeltaTime;
-        playerRigidbody.MovePosition(nextPosition);
-
-        if (rotateToMovement && moveDirection.sqrMagnitude > 0.001f)
+        if (characterController.isGrounded && verticalVelocity < 0f)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
-            Quaternion smoothRotation = Quaternion.Slerp(
-                playerRigidbody.rotation,
-                targetRotation,
-                rotationSpeed * Time.fixedDeltaTime
-            );
-
-            playerRigidbody.MoveRotation(smoothRotation);
+            verticalVelocity = groundedStickForce;
         }
+
+        verticalVelocity += gravity * Time.deltaTime;
+    }
+
+    private void MovePlayer()
+    {
+        Vector3 velocity = moveDirection * moveSpeed;
+        velocity.y = verticalVelocity;
+
+        characterController.Move(velocity * Time.deltaTime);
+    }
+
+    private void RotateTowardMovement()
+    {
+        if (moveDirection.sqrMagnitude <= 0.001f)
+        {
+            return;
+        }
+
+        Quaternion targetRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            targetRotation,
+            rotationSpeed * Time.deltaTime
+        );
+    }
+
+    private void ClampUnexpectedHeight()
+    {
+        if (transform.position.y <= startingYPosition + maxAllowedYPosition)
+        {
+            return;
+        }
+
+        Vector3 safePosition = transform.position;
+        safePosition.y = startingYPosition;
+        transform.position = safePosition;
+        verticalVelocity = 0f;
     }
 }
