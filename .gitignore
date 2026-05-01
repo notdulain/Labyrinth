@@ -75,3 +75,16 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 # End of https://www.toptal.com/developers/gitignore/api/unity
+
+# Nested Unity project generated files
+Labyrinth/Library/
+Labyrinth/Logs/
+Labyrinth/Temp/
+Labyrinth/UserSettings/
+Labyrinth/.vs/
+Labyrinth/.vscode/
+Labyrinth/*.csproj
+Labyrinth/*.sln
+Labyrinth/Build/
+Labyrinth/Builds/
+Labyrinth/Obj/
