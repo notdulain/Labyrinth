@@ -2,24 +2,38 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Moves a demon dog along a waypoint path.
+/// Drives a demon dog along a Dijkstra-computed path toward a target.
+/// Falls back to a hardcoded mock path when graph or target is missing.
 /// </summary>
 public class DemonDogController : MonoBehaviour
 {
+    [Header("Movement")]
     [SerializeField] private float moveSpeed = 3f;
     [SerializeField] private float rotationSpeed = 8f;
-    [SerializeField] private float arrivalThreshold = 0.1f;
-    [SerializeField] private bool useMockPathOnStart = true;
+    [SerializeField] private float arrivalThreshold = 0.2f;
+
+    [Header("Pathfinding")]
+    [SerializeField] private Transform target;
+    [SerializeField] private float repathInterval = 2f;
+    [SerializeField] private bool useMockPathOnStart = false;
 
     private readonly List<Vector3> path = new List<Vector3>();
     private int currentWaypointIndex;
 
     private void Start()
     {
+        if (target == null)
+        {
+            GameObject hero = GameObject.FindGameObjectWithTag("Player");
+            if (hero != null) target = hero.transform;
+        }
+
         if (useMockPathOnStart)
         {
             SetPath(CreateMockPathFromCurrentPosition());
         }
+
+        InvokeRepeating(nameof(Repath), 0f, repathInterval);
     }
 
     private void Update()
@@ -38,6 +52,26 @@ public class DemonDogController : MonoBehaviour
 
         path.AddRange(newPath);
         currentWaypointIndex = 0;
+    }
+
+    private void Repath()
+    {
+        if (target == null) return;
+        if (GraphBuilder.Instance == null || GraphBuilder.Instance.AdjacencyList == null) return;
+        if (DijkstraSearch.Instance == null) return;
+
+        Vector3 startNode = GraphBuilder.Instance.GetNearestNode(transform.position);
+        Vector3 goalNode = GraphBuilder.Instance.GetNearestNode(target.position);
+
+        List<Vector3> newPath = DijkstraSearch.Instance.FindPath(
+            GraphBuilder.Instance.AdjacencyList,
+            startNode,
+            goalNode);
+
+        if (newPath != null && newPath.Count > 0)
+        {
+            SetPath(newPath);
+        }
     }
 
     private void FollowPath()
