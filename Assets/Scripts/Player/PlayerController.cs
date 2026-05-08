@@ -1,11 +1,12 @@
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
-public class PlayerController : MonoBehaviour
+public class PlayerController : MonoBehaviour, IPlayerMotionResettable
 {
     [Header("Movement")]
     public float moveSpeed = 4f;
     public float rotationSpeed = 12f;
+    public float moveAfterTurnAngle = 2f;
 
     [Header("Gravity")]
     public float gravity = -25f;
@@ -24,6 +25,7 @@ public class PlayerController : MonoBehaviour
 
     private CharacterController characterController;
     private Vector3 moveDirection;
+    private bool canMoveHorizontally = true;
     private float verticalVelocity;
     private float startingYPosition;
 
@@ -45,8 +47,8 @@ public class PlayerController : MonoBehaviour
     {
         ReadCameraRelativeInput();
         ApplyGravity();
-        MovePlayer();
         RotateTowardMovement();
+        MovePlayer();
         ClampUnexpectedHeight();
     }
 
@@ -94,7 +96,8 @@ public class PlayerController : MonoBehaviour
 
     private void MovePlayer()
     {
-        Vector3 horizontalVelocity = GetWallSafeHorizontalVelocity(moveDirection * moveSpeed);
+        Vector3 requestedHorizontalVelocity = canMoveHorizontally ? moveDirection * moveSpeed : Vector3.zero;
+        Vector3 horizontalVelocity = GetWallSafeHorizontalVelocity(requestedHorizontalVelocity);
         Vector3 velocity = horizontalVelocity;
         velocity.y = verticalVelocity;
 
@@ -167,15 +170,17 @@ public class PlayerController : MonoBehaviour
     {
         if (moveDirection.sqrMagnitude <= 0.001f)
         {
+            canMoveHorizontally = true;
             return;
         }
 
         Quaternion targetRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
-        transform.rotation = Quaternion.Slerp(
+        transform.rotation = Quaternion.RotateTowards(
             transform.rotation,
             targetRotation,
-            rotationSpeed * Time.deltaTime
-        );
+            rotationSpeed * 90f * Time.deltaTime);
+
+        canMoveHorizontally = Quaternion.Angle(transform.rotation, targetRotation) <= moveAfterTurnAngle;
     }
 
     private void ClampUnexpectedHeight()
@@ -191,6 +196,14 @@ public class PlayerController : MonoBehaviour
         verticalVelocity = 0f;
 
         Debug.LogWarning("Player Y position jumped unexpectedly. Resetting height for safety.", this);
+    }
+
+    public void ResetMotionState()
+    {
+        moveDirection = Vector3.zero;
+        canMoveHorizontally = true;
+        verticalVelocity = 0f;
+        startingYPosition = transform.position.y;
     }
 
     private void WarnAboutInvalidComponents()
