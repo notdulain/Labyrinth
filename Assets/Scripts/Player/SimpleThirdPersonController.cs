@@ -12,12 +12,13 @@ using UnityEngine;
 ///   Trigger "Jump"
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
-public class SimpleThirdPersonController : MonoBehaviour
+public class SimpleThirdPersonController : MonoBehaviour, IPlayerMotionResettable
 {
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 2.5f;
     [SerializeField] private float runSpeed = 5f;
     [SerializeField] private float rotationSpeed = 12f;
+    [SerializeField] private float moveAfterTurnAngle = 2f;
     [SerializeField] private float gravity = -20f;
     [SerializeField] private float jumpHeight = 1.2f;
 
@@ -35,15 +36,20 @@ public class SimpleThirdPersonController : MonoBehaviour
     [SerializeField] private float minCameraPitch = -20f;
     [SerializeField] private float maxCameraPitch = 55f;
 
+    [Header("Camera Collision")]
+    [SerializeField] private LayerMask cameraCollisionMask = ~0;
+    [SerializeField] private float cameraCollisionRadius = 0.25f;
+    [SerializeField] private float cameraCollisionPadding = 0.2f;
+
     private CharacterController characterController;
     private float verticalVelocity;
     private float currentSpeedParam; // smoothed value sent to Animator
     private float cameraYaw;
     private float cameraPitch = 18f;
 
-    private static readonly int SpeedHash    = Animator.StringToHash("Speed");
+    private static readonly int SpeedHash = Animator.StringToHash("Speed");
     private static readonly int GroundedHash = Animator.StringToHash("Grounded");
-    private static readonly int JumpHash     = Animator.StringToHash("Jump");
+    private static readonly int JumpHash = Animator.StringToHash("Jump");
 
     private void Awake()
     {
@@ -86,7 +92,6 @@ public class SimpleThirdPersonController : MonoBehaviour
             {
                 animator.ResetTrigger(JumpHash);
                 animator.SetTrigger(JumpHash);
-                animator.CrossFadeInFixedTime(JumpHash, 0.02f, 0, 0f);
             }
 
             verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -94,17 +99,24 @@ public class SimpleThirdPersonController : MonoBehaviour
 
         verticalVelocity += gravity * Time.deltaTime;
 
-        // ---- APPLY MOVEMENT ----
-        Vector3 velocity = moveDir * speed;
-        velocity.y = verticalVelocity;
-        characterController.Move(velocity * Time.deltaTime);
-
         // ---- ROTATE TO FACE MOVEMENT ----
+        bool canMoveHorizontally = true;
         if (isMoving)
         {
             Quaternion target = Quaternion.LookRotation(moveDir, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, target, rotationSpeed * Time.deltaTime);
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation,
+                target,
+                rotationSpeed * 90f * Time.deltaTime);
+
+            canMoveHorizontally = Quaternion.Angle(transform.rotation, target) <= moveAfterTurnAngle;
         }
+
+        // ---- APPLY MOVEMENT ----
+        Vector3 horizontalVelocity = canMoveHorizontally ? moveDir * speed : Vector3.zero;
+        Vector3 velocity = horizontalVelocity;
+        velocity.y = verticalVelocity;
+        characterController.Move(velocity * Time.deltaTime);
 
         // ---- ANIMATOR ----
         // Target: 0 idle, 0.5 walk, 1.0 run
@@ -126,6 +138,22 @@ public class SimpleThirdPersonController : MonoBehaviour
         UpdateCamera();
     }
 
+    public void ResetMotionState()
+    {
+        verticalVelocity = 0f;
+        currentSpeedParam = 0f;
+        cameraYaw = transform.eulerAngles.y;
+
+        if (animator != null)
+        {
+            animator.ResetTrigger(JumpHash);
+            animator.SetFloat(SpeedHash, 0f);
+            animator.SetBool(GroundedHash, true);
+        }
+
+        SnapCameraToTarget();
+    }
+
     private void UpdateCamera()
     {
         if (followCamera == null) return;
@@ -138,6 +166,7 @@ public class SimpleThirdPersonController : MonoBehaviour
         Quaternion orbitRotation = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
         Vector3 desiredPosition = lookTarget + orbitRotation * new Vector3(0f, 0f, -cameraDistance);
         desiredPosition.y = Mathf.Max(desiredPosition.y, transform.position.y + cameraHeight);
+        desiredPosition = GetWallSafeCameraPosition(lookTarget, desiredPosition);
 
         followCamera.transform.position = Vector3.Lerp(
             followCamera.transform.position,
@@ -156,10 +185,63 @@ public class SimpleThirdPersonController : MonoBehaviour
         Quaternion orbitRotation = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
         Vector3 cameraPosition = lookTarget + orbitRotation * new Vector3(0f, 0f, -cameraDistance);
         cameraPosition.y = Mathf.Max(cameraPosition.y, transform.position.y + cameraHeight);
+        cameraPosition = GetWallSafeCameraPosition(lookTarget, cameraPosition);
 
         followCamera.transform.position = cameraPosition;
         followCamera.transform.rotation = Quaternion.LookRotation(lookTarget - followCamera.transform.position, Vector3.up);
         followCamera.orthographic = false;
         followCamera.fieldOfView = cameraFieldOfView;
+    }
+
+    private Vector3 GetWallSafeCameraPosition(Vector3 lookTarget, Vector3 desiredPosition)
+    {
+        Vector3 cameraDirection = desiredPosition - lookTarget;
+        float cameraDistanceToCheck = cameraDirection.magnitude;
+
+        if (cameraDistanceToCheck <= 0.001f)
+        {
+            return desiredPosition;
+        }
+
+        cameraDirection /= cameraDistanceToCheck;
+        float nearestDistance = cameraDistanceToCheck;
+        bool foundObstacle = false;
+
+        RaycastHit[] hits = Physics.SphereCastAll(
+            lookTarget,
+            cameraCollisionRadius,
+            cameraDirection,
+            cameraDistanceToCheck,
+            cameraCollisionMask,
+            QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.transform == transform || hit.transform.IsChildOf(transform))
+            {
+                continue;
+            }
+
+            if (hit.distance < nearestDistance)
+            {
+                nearestDistance = hit.distance;
+                foundObstacle = true;
+            }
+        }
+
+        if (!foundObstacle)
+        {
+            return desiredPosition;
+        }
+
+        float safeDistance = Mathf.Max(nearestDistance - cameraCollisionPadding, 0.1f);
+        return lookTarget + cameraDirection * safeDistance;
+    }
+
+    private void OnValidate()
+    {
+        cameraCollisionRadius = Mathf.Max(0.01f, cameraCollisionRadius);
+        cameraCollisionPadding = Mathf.Max(0f, cameraCollisionPadding);
     }
 }

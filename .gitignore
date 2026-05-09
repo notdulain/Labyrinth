@@ -28,6 +28,7 @@
 
 # Visual Studio cache directory
 .vs/
+.vsconfig
 
 # Gradle cache directory
 .gradle/
@@ -44,6 +45,7 @@ ExportedObj/
 *.userprefs
 *.pidb
 *.booproj
+*.slnx
 *.svd
 *.pdb
 *.mdb
@@ -79,6 +81,10 @@ crashlytics-build.properties
 # Local/generated project extras
 .DS_Store
 **/.DS_Store
+/.dotnet_cli_home/
+/[Tt]esting/
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
 /[Aa]ssets/[Ss]creenshots/
 /[Aa]ssets/[Ss]creenshots.meta
 /[Aa]ssets/[Mm]obile[Dd]ependency[Rr]esolver/
