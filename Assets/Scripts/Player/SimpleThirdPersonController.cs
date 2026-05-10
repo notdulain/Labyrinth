@@ -30,11 +30,12 @@ public class SimpleThirdPersonController : MonoBehaviour, IPlayerMotionResettabl
     [SerializeField] private float cameraDistance = 3.2f;
     [SerializeField] private float cameraHeight = 2.2f;
     [SerializeField] private float cameraLookHeight = 1.25f;
-    [SerializeField] private float cameraFollowSpeed = 12f;
+    [SerializeField] private float cameraFollowSpeed = 18f;
     [SerializeField] private float cameraFieldOfView = 65f;
-    [SerializeField] private float mouseSensitivity = 180f;
+    [SerializeField, Range(1f, 20f)] private float mouseLookSensitivity = 9f;
     [SerializeField] private float minCameraPitch = -20f;
     [SerializeField] private float maxCameraPitch = 55f;
+    [SerializeField] private bool lockCursor = true;
 
     [Header("Camera Collision")]
     [SerializeField] private LayerMask cameraCollisionMask = ~0;
@@ -59,6 +60,12 @@ public class SimpleThirdPersonController : MonoBehaviour, IPlayerMotionResettabl
 
         cameraYaw = transform.eulerAngles.y;
         SnapCameraToTarget();
+
+        if (lockCursor)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
     }
 
     private void Update()
@@ -158,8 +165,8 @@ public class SimpleThirdPersonController : MonoBehaviour, IPlayerMotionResettabl
     {
         if (followCamera == null) return;
 
-        cameraYaw += Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        cameraPitch -= Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        cameraYaw += Input.GetAxisRaw("Mouse X") * mouseLookSensitivity;
+        cameraPitch -= Input.GetAxisRaw("Mouse Y") * mouseLookSensitivity;
         cameraPitch = Mathf.Clamp(cameraPitch, minCameraPitch, maxCameraPitch);
 
         Vector3 lookTarget = transform.position + Vector3.up * cameraLookHeight;
@@ -168,10 +175,8 @@ public class SimpleThirdPersonController : MonoBehaviour, IPlayerMotionResettabl
         desiredPosition.y = Mathf.Max(desiredPosition.y, transform.position.y + cameraHeight);
         desiredPosition = GetWallSafeCameraPosition(lookTarget, desiredPosition);
 
-        followCamera.transform.position = Vector3.Lerp(
-            followCamera.transform.position,
-            desiredPosition,
-            cameraFollowSpeed * Time.deltaTime);
+        float followT = 1f - Mathf.Exp(-cameraFollowSpeed * Time.deltaTime);
+        followCamera.transform.position = Vector3.Lerp(followCamera.transform.position, desiredPosition, followT);
         followCamera.transform.rotation = Quaternion.LookRotation(lookTarget - followCamera.transform.position, Vector3.up);
         followCamera.orthographic = false;
         followCamera.fieldOfView = cameraFieldOfView;
@@ -243,5 +248,7 @@ public class SimpleThirdPersonController : MonoBehaviour, IPlayerMotionResettabl
     {
         cameraCollisionRadius = Mathf.Max(0.01f, cameraCollisionRadius);
         cameraCollisionPadding = Mathf.Max(0f, cameraCollisionPadding);
+        cameraFollowSpeed = Mathf.Max(1f, cameraFollowSpeed);
+        mouseLookSensitivity = Mathf.Max(1f, mouseLookSensitivity);
     }
 }
