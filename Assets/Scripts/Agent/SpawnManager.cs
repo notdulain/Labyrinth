@@ -56,28 +56,25 @@ public class SpawnManager : MonoBehaviour
 
     private void SpawnAtDefinedPoints(List<Transform> spawnPoints)
     {
-        HashSet<Vector3> usedNodes = new HashSet<Vector3>();
         Vector3 anchorPosition = target != null ? target.position : spawnPoints[0].position;
         int actual = Mathf.Min(spawnCount, spawnPoints.Count);
         for (int i = 0; i < actual; i++)
         {
             Transform spawnPoint = spawnPoints[i];
-            Vector3 spawnPosition = GraphBuilder.Instance.GetNearestNodeReachableTo(
-                spawnPoint.position,
-                anchorPosition,
-                usedNodes);
-            usedNodes.Add(spawnPosition);
 
-            GameObject dog = Instantiate(demonDogPrefab, spawnPosition, spawnPoint.rotation);
+            GameObject dog = Instantiate(demonDogPrefab, spawnPoint.position, spawnPoint.rotation);
             dog.name = $"DemonDog_{i + 1}";
             ConfigureSpawnedAgent(dog);
             spawnedDogs.Add(dog);
 
-            if (Vector3.Distance(spawnPoint.position, spawnPosition) > GraphBuilder.Instance.cellSize)
+            Vector3 nearestReachable = GraphBuilder.Instance.GetNearestNodeReachableTo(
+                spawnPoint.position,
+                anchorPosition);
+            if (Vector3.Distance(spawnPoint.position, nearestReachable) > GraphBuilder.Instance.cellSize)
             {
                 Debug.LogWarning(
-                    $"[SpawnManager] {spawnPoint.name} was not on the player's reachable graph. " +
-                    $"Spawned {dog.name} at nearest reachable node {spawnPosition}.");
+                    $"[SpawnManager] {spawnPoint.name} is not on the player's reachable graph. " +
+                    $"{dog.name} will spawn at the marker but may be unable to path to the target.");
             }
         }
 
