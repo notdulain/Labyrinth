@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using System.Collections.Generic;
 
 /// <summary>
@@ -65,6 +66,7 @@ public class SpawnManager : MonoBehaviour
             GameObject dog = Instantiate(demonDogPrefab, spawnPoint.position, spawnPoint.rotation);
             dog.name = $"DemonDog_{i + 1}";
             ConfigureSpawnedAgent(dog);
+            dog.transform.SetPositionAndRotation(spawnPoint.position, spawnPoint.rotation);
             spawnedDogs.Add(dog);
 
             Vector3 nearestReachable = GraphBuilder.Instance.GetNearestNodeReachableTo(
@@ -129,13 +131,14 @@ public class SpawnManager : MonoBehaviour
     private List<Transform> FindSpawnPoints()
     {
         List<Transform> spawnPoints = new List<Transform>();
+        Scene ownerScene = gameObject.scene;
 
         try
         {
             GameObject[] taggedPoints = GameObject.FindGameObjectsWithTag(spawnPointTag);
             foreach (GameObject point in taggedPoints)
             {
-                if (point != null)
+                if (IsSceneSpawnPoint(point != null ? point.transform : null, ownerScene))
                 {
                     spawnPoints.Add(point.transform);
                 }
@@ -148,10 +151,12 @@ public class SpawnManager : MonoBehaviour
 
         if (spawnPoints.Count == 0)
         {
-            Transform[] allTransforms = FindObjectsOfType<Transform>();
+            Transform[] allTransforms = FindObjectsByType<Transform>(
+                FindObjectsInactive.Exclude,
+                FindObjectsSortMode.None);
             foreach (Transform candidate in allTransforms)
             {
-                if (candidate.name.StartsWith(spawnPointNamePrefix))
+                if (IsSceneSpawnPoint(candidate, ownerScene))
                 {
                     spawnPoints.Add(candidate);
                 }
@@ -160,6 +165,27 @@ public class SpawnManager : MonoBehaviour
 
         spawnPoints.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
         return spawnPoints;
+    }
+
+    private bool IsSceneSpawnPoint(Transform candidate, Scene ownerScene)
+    {
+        if (candidate == null || !candidate.gameObject.activeInHierarchy)
+            return false;
+
+        if (candidate.gameObject.scene != ownerScene)
+            return false;
+
+        if (candidate.name.StartsWith(spawnPointNamePrefix))
+            return true;
+
+        try
+        {
+            return candidate.CompareTag(spawnPointTag);
+        }
+        catch (UnityException)
+        {
+            return false;
+        }
     }
 
     private void ConfigureSpawnedAgent(GameObject dog)
