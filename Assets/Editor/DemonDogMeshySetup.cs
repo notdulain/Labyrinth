@@ -109,13 +109,32 @@ public static class DemonDogMeshySetup
             EditorUtility.SetDirty(dog);
         }
 
-        Animator animator = dog.GetComponent<Animator>();
-        if (animator != null)
+        Animator parentAnimator = dog.GetComponent<Animator>();
+        if (parentAnimator != null)
         {
-            animator.runtimeAnimatorController = controller;
-            animator.avatar = characterAvatar;
-            animator.applyRootMotion = false;
-            EditorUtility.SetDirty(animator);
+            parentAnimator.applyRootMotion = false;
+            parentAnimator.enabled = false;
+            EditorUtility.SetDirty(parentAnimator);
+        }
+
+        if (meshyModel != null)
+        {
+            Animator modelAnimator = meshyModel.GetComponent<Animator>();
+            if (modelAnimator == null)
+            {
+                modelAnimator = meshyModel.gameObject.AddComponent<Animator>();
+            }
+
+            modelAnimator.runtimeAnimatorController = controller;
+            modelAnimator.avatar = characterAvatar;
+            modelAnimator.applyRootMotion = false;
+            modelAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            modelAnimator.updateMode = AnimatorUpdateMode.Normal;
+            modelAnimator.enabled = true;
+
+            dog.animator = modelAnimator;
+            EditorUtility.SetDirty(modelAnimator);
+            EditorUtility.SetDirty(dog);
         }
 
         EditorSceneManager.MarkSceneDirty(dog.gameObject.scene);
