@@ -73,6 +73,12 @@ public class PathVisualizer : MonoBehaviour
         Debug.Log("[PathVisualizer] Ready. Press P to toggle path visualization.");
     }
 
+    // How often (in seconds) to recalculate paths while visualizer is ON.
+    // Every frame would be too expensive — 0.5s is smooth enough for debugging.
+    [Header("Refresh rate")]
+    [SerializeField] private float refreshInterval = 0.5f;
+    private float refreshTimer = 0f;
+
     private void Update()
     {
         if (Input.GetKeyDown(toggleKey))
@@ -81,8 +87,8 @@ public class PathVisualizer : MonoBehaviour
 
             if (isVisible)
             {
-                // Recalculate all paths when we switch on
-                RefreshAllPaths();
+                RefreshAllPaths();   // immediate refresh on toggle-on
+                refreshTimer = 0f;
             }
             else
             {
@@ -90,11 +96,17 @@ public class PathVisualizer : MonoBehaviour
             }
         }
 
-        // Draw lines in Game view every frame while visualization is active
-        // (Debug.DrawLine without duration lasts exactly one frame, so we call
-        //  it in Update to keep the lines visible continuously)
         if (isVisible)
         {
+            // Count down and recalculate — paths follow the moving player
+            refreshTimer -= Time.deltaTime;
+            if (refreshTimer <= 0f)
+            {
+                RefreshAllPaths();
+                refreshTimer = refreshInterval;
+            }
+
+            // Draw lines every frame (Debug.DrawLine lasts only one frame)
             DrawDebugLines(bfsPath,      Color.blue);
             DrawDebugLines(astarPath,    Color.green);
             DrawDebugLines(dijkstraPath, Color.yellow);
