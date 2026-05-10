@@ -216,7 +216,7 @@ public class AlgorithmComparison : MonoBehaviour
 
         GUI.Box(
             new Rect(10, 10, 460, 30 + results.Count * 22 + 30),
-            "Algorithm Comparison (D/A/B: select, P: path, C: toggle)");
+            "Algorithm Comparison (1/2/3: select, P: path, C: toggle)");
 
         int y = 35;
         GUI.Label(new Rect(20, y, 120, 20), "Algorithm");

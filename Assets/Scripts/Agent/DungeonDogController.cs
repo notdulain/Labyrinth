@@ -410,19 +410,19 @@ public class DungeonDogController : MonoBehaviour
 
         bool changedAlgorithm = false;
 
-        if (Input.GetKeyDown(KeyCode.A))
+        if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             globalSelectedAlgorithm = PathfindingAlgorithm.AStar;
             Debug.Log("Selected Algorithm: A*");
             changedAlgorithm = true;
         }
-        else if (Input.GetKeyDown(KeyCode.D))
+        else if (Input.GetKeyDown(KeyCode.Alpha2))
         {
             globalSelectedAlgorithm = PathfindingAlgorithm.Dijkstra;
             Debug.Log("Selected Algorithm: Dijkstra");
             changedAlgorithm = true;
         }
-        else if (Input.GetKeyDown(KeyCode.B))
+        else if (Input.GetKeyDown(KeyCode.Alpha3))
         {
             globalSelectedAlgorithm = PathfindingAlgorithm.BFS;
             Debug.Log("Selected Algorithm: BFS");
