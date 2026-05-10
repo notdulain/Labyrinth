@@ -1,6 +1,10 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Builds a 2D grid-based navigation graph from the scene.
+/// Each walkable cell becomes a node; 4-directional neighbours become edges.
+/// </summary>
 public class GraphBuilder : MonoBehaviour
 {
     public static GraphBuilder Instance;
@@ -62,6 +66,25 @@ public class GraphBuilder : MonoBehaviour
         }
 
         Debug.Log($"[GraphBuilder] Built graph: {AdjacencyList.Count} walkable nodes");
+    }
+
+    public Vector3 GetNearestNode(Vector3 worldPos)
+    {
+        if (AdjacencyList == null || AdjacencyList.Count == 0)
+            return worldPos;
+
+        Vector3 best = worldPos;
+        float bestDist = float.PositiveInfinity;
+        foreach (var node in AdjacencyList.Keys)
+        {
+            float d = (node - worldPos).sqrMagnitude;
+            if (d < bestDist)
+            {
+                bestDist = d;
+                best = node;
+            }
+        }
+        return best;
     }
 
     Vector3 GridToWorld(int col, int row)
