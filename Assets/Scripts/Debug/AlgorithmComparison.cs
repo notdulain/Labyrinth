@@ -60,7 +60,7 @@ public class AlgorithmComparison : MonoBehaviour
         Vector3 goalNode = GraphBuilder.Instance.GetNearestNode(goal);
         var graph = GraphBuilder.Instance.AdjacencyList;
 
-        results.Add(Measure("A*",       FindObjectOfType<AStarSearch>(),    graph, startNode, goalNode));
+        results.Add(Measure("A*",       ResolveAStarSearch(),               graph, startNode, goalNode));
         results.Add(Measure("BFS",      FindObjectOfType<BFSSearch>(),      graph, startNode, goalNode));
         results.Add(Measure("Dijkstra", FindObjectOfType<DijkstraSearch>(), graph, startNode, goalNode));
 
@@ -87,6 +87,12 @@ public class AlgorithmComparison : MonoBehaviour
         if (goalTransform != null) return goalTransform.position;
         GameObject hero = GameObject.FindGameObjectWithTag("Player");
         return hero != null ? hero.transform.position : Vector3.zero;
+    }
+
+    private AStarSearch ResolveAStarSearch()
+    {
+        AStarSearch search = FindObjectOfType<AStarSearch>();
+        return search != null ? search : gameObject.AddComponent<AStarSearch>();
     }
 
     private static Result Measure(

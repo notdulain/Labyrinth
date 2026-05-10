@@ -68,6 +68,11 @@ public class PathVisualizer : MonoBehaviour
         // A* is Sasindi's script — use FindObjectOfType generically
         // so we don't break if the class is empty or not yet attached
         AStarSearch foundAStar = FindObjectOfType<AStarSearch>();
+        if (foundAStar == null)
+        {
+            foundAStar = gameObject.AddComponent<AStarSearch>();
+        }
+
         astarSearcher = foundAStar;
 
         Debug.Log("[PathVisualizer] Ready. Press P to toggle path visualization.");
