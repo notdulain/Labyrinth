@@ -2,9 +2,8 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Spawns multiple demon dogs at random walkable graph nodes.
-/// Each spawned dog runs its own DemonDogController, so they all
-/// pathfind independently with Dijkstra against the same target.
+/// Spawns demon dogs at the AgentSpawn markers placed in the level.
+/// Falls back to graph nodes only when a scene has no spawn markers.
 /// </summary>
 public class SpawnManager : MonoBehaviour
 {
@@ -12,6 +11,8 @@ public class SpawnManager : MonoBehaviour
     [SerializeField] private GameObject demonDogPrefab;
     [SerializeField] private int spawnCount = 3;
     [SerializeField] private float minDistanceFromTarget = 8f;
+    [SerializeField] private string spawnPointTag = "AgentSpawn";
+    [SerializeField] private string spawnPointNamePrefix = "AgentSpawn";
 
     [Header("Target")]
     [SerializeField] private Transform target;
@@ -23,8 +24,7 @@ public class SpawnManager : MonoBehaviour
     {
         if (target == null)
         {
-            GameObject hero = GameObject.FindGameObjectWithTag(targetTag);
-            if (hero != null) target = hero.transform;
+            target = ResolveTarget();
         }
 
         if (demonDogPrefab == null)
@@ -43,6 +43,48 @@ public class SpawnManager : MonoBehaviour
     }
 
     private void SpawnDogs()
+    {
+        List<Transform> spawnPoints = FindSpawnPoints();
+        if (spawnPoints.Count > 0)
+        {
+            SpawnAtDefinedPoints(spawnPoints);
+            return;
+        }
+
+        SpawnAtGraphNodes();
+    }
+
+    private void SpawnAtDefinedPoints(List<Transform> spawnPoints)
+    {
+        HashSet<Vector3> usedNodes = new HashSet<Vector3>();
+        Vector3 anchorPosition = target != null ? target.position : spawnPoints[0].position;
+        int actual = Mathf.Min(spawnCount, spawnPoints.Count);
+        for (int i = 0; i < actual; i++)
+        {
+            Transform spawnPoint = spawnPoints[i];
+            Vector3 spawnPosition = GraphBuilder.Instance.GetNearestNodeReachableTo(
+                spawnPoint.position,
+                anchorPosition,
+                usedNodes);
+            usedNodes.Add(spawnPosition);
+
+            GameObject dog = Instantiate(demonDogPrefab, spawnPosition, spawnPoint.rotation);
+            dog.name = $"DemonDog_{i + 1}";
+            ConfigureSpawnedAgent(dog);
+            spawnedDogs.Add(dog);
+
+            if (Vector3.Distance(spawnPoint.position, spawnPosition) > GraphBuilder.Instance.cellSize)
+            {
+                Debug.LogWarning(
+                    $"[SpawnManager] {spawnPoint.name} was not on the player's reachable graph. " +
+                    $"Spawned {dog.name} at nearest reachable node {spawnPosition}.");
+            }
+        }
+
+        Debug.Log($"[SpawnManager] Spawned {actual} demon dogs at defined AgentSpawn points.");
+    }
+
+    private void SpawnAtGraphNodes()
     {
         List<Vector3> walkableNodes = new List<Vector3>(GraphBuilder.Instance.AdjacencyList.Keys);
         if (walkableNodes.Count == 0)
@@ -69,24 +111,99 @@ public class SpawnManager : MonoBehaviour
 
         Shuffle(candidates);
 
+        HashSet<Vector3> usedNodes = new HashSet<Vector3>();
         int actual = Mathf.Min(spawnCount, candidates.Count);
         for (int i = 0; i < actual; i++)
         {
-            Vector3 spawnPos = candidates[i];
+            Vector3 spawnPos = GraphBuilder.Instance.GetNearestNodeReachableTo(
+                candidates[i],
+                targetPos,
+                usedNodes);
+            usedNodes.Add(spawnPos);
             GameObject dog = Instantiate(demonDogPrefab, spawnPos, Quaternion.identity);
             dog.name = $"DemonDog_{i + 1}";
-
-            DemonDogController controller = dog.GetComponent<DemonDogController>();
-            if (controller != null && target != null)
-            {
-                // Use reflection-free assignment via a public setter we'll add to the controller,
-                // or rely on the controller's auto-find by tag. Auto-find covers us here.
-            }
-
+            ConfigureSpawnedAgent(dog);
             spawnedDogs.Add(dog);
         }
 
-        Debug.Log($"[SpawnManager] Spawned {actual} demon dogs.");
+        Debug.Log($"[SpawnManager] Spawned {actual} demon dogs at fallback graph nodes.");
+    }
+
+    private List<Transform> FindSpawnPoints()
+    {
+        List<Transform> spawnPoints = new List<Transform>();
+
+        try
+        {
+            GameObject[] taggedPoints = GameObject.FindGameObjectsWithTag(spawnPointTag);
+            foreach (GameObject point in taggedPoints)
+            {
+                if (point != null)
+                {
+                    spawnPoints.Add(point.transform);
+                }
+            }
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes; name fallback below still works.
+        }
+
+        if (spawnPoints.Count == 0)
+        {
+            Transform[] allTransforms = FindObjectsOfType<Transform>();
+            foreach (Transform candidate in allTransforms)
+            {
+                if (candidate.name.StartsWith(spawnPointNamePrefix))
+                {
+                    spawnPoints.Add(candidate);
+                }
+            }
+        }
+
+        spawnPoints.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+        return spawnPoints;
+    }
+
+    private void ConfigureSpawnedAgent(GameObject dog)
+    {
+        if (dog == null)
+        {
+            return;
+        }
+
+        DemonDogController dogController = dog.GetComponent<DemonDogController>();
+        if (dogController != null)
+        {
+            dogController.SetTarget(target);
+        }
+
+        IntelligentAgent intelligentAgent = dog.GetComponent<IntelligentAgent>();
+        if (intelligentAgent != null)
+        {
+            intelligentAgent.SetTarget(target);
+        }
+    }
+
+    private Transform ResolveTarget()
+    {
+        GameObject hero = null;
+
+        try
+        {
+            hero = GameObject.FindGameObjectWithTag(targetTag);
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes.
+        }
+
+        if (hero == null)
+        {
+            hero = GameObject.Find("Player");
+        }
+
+        return hero != null ? hero.transform : null;
     }
 
     private static void Shuffle<T>(List<T> list)

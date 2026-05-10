@@ -61,8 +61,7 @@ public class DemonDogController : MonoBehaviour
     {
         if (target == null)
         {
-            GameObject hero = GameObject.FindGameObjectWithTag("Player");
-            if (hero != null) target = hero.transform;
+            target = ResolveTarget();
         }
 
         if (useMockPathOnStart)
@@ -92,13 +91,23 @@ public class DemonDogController : MonoBehaviour
         currentWaypointIndex = 0;
     }
 
+    public void SetTarget(Transform newTarget)
+    {
+        target = newTarget;
+    }
+
     private void Repath()
     {
+        if (target == null)
+        {
+            target = ResolveTarget();
+        }
+
         if (target == null) return;
         if (GraphBuilder.Instance == null || GraphBuilder.Instance.AdjacencyList == null) return;
         if (DijkstraSearch.Instance == null) return;
 
-        Vector3 startNode = GraphBuilder.Instance.GetNearestNode(transform.position);
+        Vector3 startNode = GraphBuilder.Instance.GetNearestNodeReachableTo(transform.position, target.position);
         Vector3 goalNode = GraphBuilder.Instance.GetNearestNode(target.position);
 
         List<Vector3> newPath = DijkstraSearch.Instance.FindPath(
@@ -235,5 +244,26 @@ public class DemonDogController : MonoBehaviour
         {
             Gizmos.DrawWireSphere(path[currentWaypointIndex], 0.15f);
         }
+    }
+
+    private Transform ResolveTarget()
+    {
+        GameObject hero = null;
+
+        try
+        {
+            hero = GameObject.FindGameObjectWithTag("Player");
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes.
+        }
+
+        if (hero == null)
+        {
+            hero = GameObject.Find("Player");
+        }
+
+        return hero != null ? hero.transform : null;
     }
 }
