@@ -3,7 +3,7 @@ using UnityEngine.SceneManagement;
 using System.Collections.Generic;
 
 /// <summary>
-/// Spawns demon dogs at the AgentSpawn markers placed in the level.
+/// Spawns agents at the AgentSpawn markers placed in the level.
 /// Falls back to graph nodes only when a scene has no spawn markers.
 /// </summary>
 public class SpawnManager : MonoBehaviour
@@ -30,7 +30,7 @@ public class SpawnManager : MonoBehaviour
 
         if (demonDogPrefab == null)
         {
-            Debug.LogError("[SpawnManager] No demonDogPrefab assigned.");
+            Debug.LogError("[SpawnManager] No agent prefab assigned.");
             return;
         }
 
@@ -64,7 +64,7 @@ public class SpawnManager : MonoBehaviour
             Transform spawnPoint = spawnPoints[i];
 
             GameObject dog = Instantiate(demonDogPrefab, spawnPoint.position, spawnPoint.rotation);
-            dog.name = $"DemonDog_{i + 1}";
+            dog.name = $"{GetSpawnedAgentNamePrefix()}_{i + 1}";
             ConfigureSpawnedAgent(dog);
             dog.transform.SetPositionAndRotation(spawnPoint.position, spawnPoint.rotation);
             spawnedDogs.Add(dog);
@@ -80,7 +80,7 @@ public class SpawnManager : MonoBehaviour
             }
         }
 
-        Debug.Log($"[SpawnManager] Spawned {actual} demon dogs at defined AgentSpawn points.");
+        Debug.Log($"[SpawnManager] Spawned {actual} agent(s) at defined AgentSpawn points.");
     }
 
     private void SpawnAtGraphNodes()
@@ -120,12 +120,12 @@ public class SpawnManager : MonoBehaviour
                 usedNodes);
             usedNodes.Add(spawnPos);
             GameObject dog = Instantiate(demonDogPrefab, spawnPos, Quaternion.identity);
-            dog.name = $"DemonDog_{i + 1}";
+            dog.name = $"{GetSpawnedAgentNamePrefix()}_{i + 1}";
             ConfigureSpawnedAgent(dog);
             spawnedDogs.Add(dog);
         }
 
-        Debug.Log($"[SpawnManager] Spawned {actual} demon dogs at fallback graph nodes.");
+        Debug.Log($"[SpawnManager] Spawned {actual} agent(s) at fallback graph nodes.");
     }
 
     private List<Transform> FindSpawnPoints()
@@ -206,6 +206,11 @@ public class SpawnManager : MonoBehaviour
         {
             intelligentAgent.SetTarget(target);
         }
+    }
+
+    private string GetSpawnedAgentNamePrefix()
+    {
+        return demonDogPrefab != null ? demonDogPrefab.name : "DemonDog";
     }
 
     private Transform ResolveTarget()
