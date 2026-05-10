@@ -1,15 +1,12 @@
-using UnityEngine;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Reflection;
+using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 /// <summary>
 /// Side-by-side comparison of A*, BFS, and Dijkstra on the same graph.
 /// Toggle the panel with the C key. Press R to re-run all three.
 ///
-/// A* and BFS are discovered via reflection so this script keeps working
-/// while teammates have not yet implemented their FindPath methods.
+/// Results are sourced from MultiAlgorithmPathfinder so the UI matches the dog.
 /// </summary>
 public class AlgorithmComparison : MonoBehaviour
 {
@@ -30,7 +27,9 @@ public class AlgorithmComparison : MonoBehaviour
         public bool Implemented;
         public bool Succeeded;
         public int PathNodes;
+        public int VisitedNodes;
         public double Milliseconds;
+        public bool Selected;
     }
 
     private void Start()
@@ -40,49 +39,118 @@ public class AlgorithmComparison : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(toggleKey)) visible = !visible;
-        if (Input.GetKeyDown(rerunKey)) Run();
+        if (Input.GetKeyDown(toggleKey))
+        {
+            visible = !visible;
+        }
+
+        if (Input.GetKeyDown(rerunKey))
+        {
+            Run();
+        }
     }
 
     public void Run()
     {
         results.Clear();
 
-        if (GraphBuilder.Instance == null || GraphBuilder.Instance.AdjacencyList == null)
+        MultiAlgorithmPathfinder pathfinder = FindObjectOfType<MultiAlgorithmPathfinder>();
+        if (pathfinder == null)
         {
-            Debug.LogWarning("[AlgorithmComparison] GraphBuilder not ready.");
+            Debug.LogWarning("[AlgorithmComparison] MultiAlgorithmPathfinder not ready.");
             return;
         }
 
         Vector3 start = ResolveStart();
         Vector3 goal = ResolveGoal();
-        Vector3 startNode = GraphBuilder.Instance.GetNearestNodeReachableTo(start, goal);
-        Vector3 goalNode = GraphBuilder.Instance.GetNearestNode(goal);
-        var graph = GraphBuilder.Instance.AdjacencyList;
+        DemonDogController dog = FindObjectOfType<DemonDogController>();
+        PathfindingAlgorithm selectedAlgorithm = dog != null ? dog.selectedAlgorithm : PathfindingAlgorithm.AStar;
+        List<PathfindingResult> comparisonResults = pathfinder.CompareAll(start, goal, false);
 
-        results.Add(Measure("A*",       ResolveAStarSearch(),               graph, startNode, goalNode));
-        results.Add(Measure("BFS",      FindObjectOfType<BFSSearch>(),      graph, startNode, goalNode));
-        results.Add(Measure("Dijkstra", FindObjectOfType<DijkstraSearch>(), graph, startNode, goalNode));
-
-        foreach (var r in results)
+        for (int i = 0; i < comparisonResults.Count; i++)
         {
-            if (!r.Implemented)
-                Debug.Log($"[AlgorithmComparison] {r.Algorithm}: not implemented yet.");
-            else if (!r.Succeeded)
-                Debug.Log($"[AlgorithmComparison] {r.Algorithm}: no path found ({r.Milliseconds:F2} ms).");
-            else
-                Debug.Log($"[AlgorithmComparison] {r.Algorithm}: {r.PathNodes} nodes in {r.Milliseconds:F2} ms.");
+            PathfindingResult source = comparisonResults[i];
+            results.Add(ToChartResult(
+                source,
+                source.algorithmName == MultiAlgorithmPathfinder.GetAlgorithmName(selectedAlgorithm)));
         }
+
+        foreach (Result result in results)
+        {
+            if (!result.Implemented)
+            {
+                Debug.Log($"[AlgorithmComparison] {result.Algorithm}: not implemented yet.");
+            }
+            else if (!result.Succeeded)
+            {
+                Debug.Log($"[AlgorithmComparison] {result.Algorithm}: no path found ({result.Milliseconds:F2} ms).");
+            }
+            else
+            {
+                Debug.Log($"[AlgorithmComparison] {result.Algorithm}: {result.PathNodes} nodes in {result.Milliseconds:F2} ms.");
+            }
+        }
+    }
+
+    public void UpdateFromDogResult(
+        PathfindingResult selectedResult,
+        List<PathfindingResult> comparisonResults,
+        PathfindingAlgorithm selectedAlgorithm)
+    {
+        visible = true;
+        results.Clear();
+
+        if (comparisonResults != null && comparisonResults.Count > 0)
+        {
+            for (int i = 0; i < comparisonResults.Count; i++)
+            {
+                PathfindingResult source = comparisonResults[i];
+                results.Add(ToChartResult(
+                    source,
+                    source.algorithmName == MultiAlgorithmPathfinder.GetAlgorithmName(selectedAlgorithm)));
+            }
+
+            return;
+        }
+
+        if (selectedResult != null)
+        {
+            results.Add(ToChartResult(selectedResult, true));
+        }
+    }
+
+    private static Result ToChartResult(PathfindingResult source, bool selected)
+    {
+        return new Result
+        {
+            Algorithm = source.algorithmName,
+            Implemented = true,
+            Succeeded = source.pathFound,
+            PathNodes = source.worldPath != null ? source.worldPath.Count : 0,
+            VisitedNodes = source.visitedNodeCount,
+            Milliseconds = source.calculationTimeMs,
+            Selected = selected
+        };
     }
 
     private Vector3 ResolveStart()
     {
-        if (startTransform != null) return startTransform.position;
-        var dog = FindObjectOfType<DemonDogController>();
-        if (dog != null) return dog.transform.position;
+        if (startTransform != null)
+        {
+            return startTransform.position;
+        }
 
-        var intelligentAgent = FindObjectOfType<IntelligentAgent>();
-        if (intelligentAgent != null) return intelligentAgent.transform.position;
+        DemonDogController dog = FindObjectOfType<DemonDogController>();
+        if (dog != null)
+        {
+            return dog.transform.position;
+        }
+
+        IntelligentAgent intelligentAgent = FindObjectOfType<IntelligentAgent>();
+        if (intelligentAgent != null)
+        {
+            return intelligentAgent.transform.position;
+        }
 
         Transform spawnPoint = FindAgentSpawnPoint();
         return spawnPoint != null ? spawnPoint.position : Vector3.zero;
@@ -90,7 +158,11 @@ public class AlgorithmComparison : MonoBehaviour
 
     private Vector3 ResolveGoal()
     {
-        if (goalTransform != null) return goalTransform.position;
+        if (goalTransform != null)
+        {
+            return goalTransform.position;
+        }
+
         GameObject hero = null;
 
         try
@@ -99,7 +171,6 @@ public class AlgorithmComparison : MonoBehaviour
         }
         catch (UnityException)
         {
-            // Tag may not exist in older scenes.
         }
 
         if (hero == null)
@@ -122,7 +193,6 @@ public class AlgorithmComparison : MonoBehaviour
         }
         catch (UnityException)
         {
-            // Tag may not exist in older scenes.
         }
 
         Transform[] allTransforms = FindObjectsOfType<Transform>();
@@ -137,78 +207,46 @@ public class AlgorithmComparison : MonoBehaviour
         return null;
     }
 
-    private AStarSearch ResolveAStarSearch()
-    {
-        AStarSearch search = FindObjectOfType<AStarSearch>();
-        return search != null ? search : gameObject.AddComponent<AStarSearch>();
-    }
-
-    private static Result Measure(
-        string label,
-        MonoBehaviour searcher,
-        Dictionary<Vector3, List<Vector3>> graph,
-        Vector3 start,
-        Vector3 goal)
-    {
-        var result = new Result { Algorithm = label };
-
-        if (searcher == null)
-        {
-            return result;
-        }
-
-        MethodInfo findPath = searcher.GetType().GetMethod(
-            "FindPath",
-            new[] { typeof(Dictionary<Vector3, List<Vector3>>), typeof(Vector3), typeof(Vector3) });
-
-        if (findPath == null)
-        {
-            return result;
-        }
-
-        result.Implemented = true;
-
-        var sw = Stopwatch.StartNew();
-        var path = findPath.Invoke(searcher, new object[] { graph, start, goal }) as List<Vector3>;
-        sw.Stop();
-
-        result.Milliseconds = sw.Elapsed.TotalMilliseconds;
-        result.Succeeded = path != null && path.Count > 0;
-        result.PathNodes = path != null ? path.Count : 0;
-        return result;
-    }
-
     private void OnGUI()
     {
-        if (!visible) return;
+        if (!visible)
+        {
+            return;
+        }
 
-        GUI.Box(new Rect(10, 10, 320, 30 + results.Count * 22 + 30),
-            "Algorithm Comparison (C: toggle, R: rerun)");
+        GUI.Box(
+            new Rect(10, 10, 460, 30 + results.Count * 22 + 30),
+            "Algorithm Comparison (D/A/B: select, P: path, C: toggle)");
 
         int y = 35;
-        GUI.Label(new Rect(20, y, 90, 20), "Algorithm");
-        GUI.Label(new Rect(120, y, 90, 20), "Path nodes");
-        GUI.Label(new Rect(220, y, 90, 20), "Time (ms)");
+        GUI.Label(new Rect(20, y, 120, 20), "Algorithm");
+        GUI.Label(new Rect(145, y, 90, 20), "Path nodes");
+        GUI.Label(new Rect(240, y, 90, 20), "Visited");
+        GUI.Label(new Rect(330, y, 90, 20), "Time (ms)");
         y += 18;
 
-        foreach (var r in results)
+        foreach (Result result in results)
         {
-            GUI.Label(new Rect(20, y, 90, 20), r.Algorithm);
+            string label = result.Selected ? $"> {result.Algorithm}" : result.Algorithm;
+            GUI.Label(new Rect(20, y, 120, 20), label);
 
-            if (!r.Implemented)
+            if (!result.Implemented)
             {
-                GUI.Label(new Rect(120, y, 200, 20), "not implemented");
+                GUI.Label(new Rect(145, y, 200, 20), "not implemented");
             }
-            else if (!r.Succeeded)
+            else if (!result.Succeeded)
             {
-                GUI.Label(new Rect(120, y, 90, 20), "no path");
-                GUI.Label(new Rect(220, y, 90, 20), r.Milliseconds.ToString("F2"));
+                GUI.Label(new Rect(145, y, 90, 20), "no path");
+                GUI.Label(new Rect(240, y, 90, 20), result.VisitedNodes.ToString());
+                GUI.Label(new Rect(330, y, 90, 20), result.Milliseconds.ToString("F2"));
             }
             else
             {
-                GUI.Label(new Rect(120, y, 90, 20), r.PathNodes.ToString());
-                GUI.Label(new Rect(220, y, 90, 20), r.Milliseconds.ToString("F2"));
+                GUI.Label(new Rect(145, y, 90, 20), result.PathNodes.ToString());
+                GUI.Label(new Rect(240, y, 90, 20), result.VisitedNodes.ToString());
+                GUI.Label(new Rect(330, y, 90, 20), result.Milliseconds.ToString("F2"));
             }
+
             y += 22;
         }
     }
