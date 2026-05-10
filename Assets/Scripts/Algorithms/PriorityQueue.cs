@@ -121,3 +121,109 @@ public class PriorityQueue
         items[secondIndex] = temporary;
     }
 }
+
+/// <summary>
+/// Generic min-priority queue used by graph algorithms that track priorities
+/// separately from the stored value.
+/// </summary>
+public class PriorityQueue<T>
+{
+    private readonly List<Item> items = new List<Item>();
+
+    public int Count
+    {
+        get { return items.Count; }
+    }
+
+    public void Enqueue(T value, float priority)
+    {
+        items.Add(new Item(value, priority));
+        SortUp(items.Count - 1);
+    }
+
+    public T Dequeue()
+    {
+        if (items.Count == 0)
+        {
+            return default;
+        }
+
+        T firstValue = items[0].Value;
+        int lastIndex = items.Count - 1;
+
+        items[0] = items[lastIndex];
+        items.RemoveAt(lastIndex);
+
+        if (items.Count > 0)
+        {
+            SortDown(0);
+        }
+
+        return firstValue;
+    }
+
+    private void SortUp(int index)
+    {
+        while (index > 0)
+        {
+            int parentIndex = (index - 1) / 2;
+
+            if (items[index].Priority >= items[parentIndex].Priority)
+            {
+                break;
+            }
+
+            Swap(index, parentIndex);
+            index = parentIndex;
+        }
+    }
+
+    private void SortDown(int index)
+    {
+        while (true)
+        {
+            int leftChildIndex = index * 2 + 1;
+            int rightChildIndex = index * 2 + 2;
+            int smallestIndex = index;
+
+            if (leftChildIndex < items.Count &&
+                items[leftChildIndex].Priority < items[smallestIndex].Priority)
+            {
+                smallestIndex = leftChildIndex;
+            }
+
+            if (rightChildIndex < items.Count &&
+                items[rightChildIndex].Priority < items[smallestIndex].Priority)
+            {
+                smallestIndex = rightChildIndex;
+            }
+
+            if (smallestIndex == index)
+            {
+                break;
+            }
+
+            Swap(index, smallestIndex);
+            index = smallestIndex;
+        }
+    }
+
+    private void Swap(int firstIndex, int secondIndex)
+    {
+        Item temporary = items[firstIndex];
+        items[firstIndex] = items[secondIndex];
+        items[secondIndex] = temporary;
+    }
+
+    private readonly struct Item
+    {
+        public readonly T Value;
+        public readonly float Priority;
+
+        public Item(T value, float priority)
+        {
+            Value = value;
+            Priority = priority;
+        }
+    }
+}

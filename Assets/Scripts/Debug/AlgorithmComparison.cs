@@ -35,7 +35,7 @@ public class AlgorithmComparison : MonoBehaviour
 
     private void Start()
     {
-        Run();
+        Invoke(nameof(Run), 0.1f);
     }
 
     private void Update()
@@ -56,11 +56,11 @@ public class AlgorithmComparison : MonoBehaviour
 
         Vector3 start = ResolveStart();
         Vector3 goal = ResolveGoal();
-        Vector3 startNode = GraphBuilder.Instance.GetNearestNode(start);
+        Vector3 startNode = GraphBuilder.Instance.GetNearestNodeReachableTo(start, goal);
         Vector3 goalNode = GraphBuilder.Instance.GetNearestNode(goal);
         var graph = GraphBuilder.Instance.AdjacencyList;
 
-        results.Add(Measure("A*",       FindObjectOfType<AStarSearch>(),    graph, startNode, goalNode));
+        results.Add(Measure("A*",       ResolveAStarSearch(),               graph, startNode, goalNode));
         results.Add(Measure("BFS",      FindObjectOfType<BFSSearch>(),      graph, startNode, goalNode));
         results.Add(Measure("Dijkstra", FindObjectOfType<DijkstraSearch>(), graph, startNode, goalNode));
 
@@ -79,14 +79,68 @@ public class AlgorithmComparison : MonoBehaviour
     {
         if (startTransform != null) return startTransform.position;
         var dog = FindObjectOfType<DemonDogController>();
-        return dog != null ? dog.transform.position : Vector3.zero;
+        if (dog != null) return dog.transform.position;
+
+        var intelligentAgent = FindObjectOfType<IntelligentAgent>();
+        if (intelligentAgent != null) return intelligentAgent.transform.position;
+
+        Transform spawnPoint = FindAgentSpawnPoint();
+        return spawnPoint != null ? spawnPoint.position : Vector3.zero;
     }
 
     private Vector3 ResolveGoal()
     {
         if (goalTransform != null) return goalTransform.position;
-        GameObject hero = GameObject.FindGameObjectWithTag("Player");
+        GameObject hero = null;
+
+        try
+        {
+            hero = GameObject.FindGameObjectWithTag("Player");
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes.
+        }
+
+        if (hero == null)
+        {
+            hero = GameObject.Find("Player");
+        }
+
         return hero != null ? hero.transform.position : Vector3.zero;
+    }
+
+    private Transform FindAgentSpawnPoint()
+    {
+        try
+        {
+            GameObject[] taggedPoints = GameObject.FindGameObjectsWithTag("AgentSpawn");
+            if (taggedPoints.Length > 0)
+            {
+                return taggedPoints[0].transform;
+            }
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes.
+        }
+
+        Transform[] allTransforms = FindObjectsOfType<Transform>();
+        foreach (Transform candidate in allTransforms)
+        {
+            if (candidate.name.StartsWith("AgentSpawn"))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private AStarSearch ResolveAStarSearch()
+    {
+        AStarSearch search = FindObjectOfType<AStarSearch>();
+        return search != null ? search : gameObject.AddComponent<AStarSearch>();
     }
 
     private static Result Measure(

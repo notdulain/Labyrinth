@@ -30,6 +30,8 @@ public class PathVisualizer : MonoBehaviour
     [SerializeField] private KeyCode toggleKey = KeyCode.P;
 
     [Header("Optional: pin specific start / goal positions")]
+    [SerializeField] private bool usePinnedTransforms = false;
+
     [Tooltip("Leave null to auto-detect DemonDog position as start.")]
     [SerializeField] private Transform startTransform;
 
@@ -68,6 +70,11 @@ public class PathVisualizer : MonoBehaviour
         // A* is Sasindi's script — use FindObjectOfType generically
         // so we don't break if the class is empty or not yet attached
         AStarSearch foundAStar = FindObjectOfType<AStarSearch>();
+        if (foundAStar == null)
+        {
+            foundAStar = gameObject.AddComponent<AStarSearch>();
+        }
+
         astarSearcher = foundAStar;
 
         Debug.Log("[PathVisualizer] Ready. Press P to toggle path visualization.");
@@ -128,8 +135,10 @@ public class PathVisualizer : MonoBehaviour
         var graph = GraphBuilder.Instance.AdjacencyList;
 
         // Snap real-world positions to the nearest graph node
-        Vector3 startNode = GraphBuilder.Instance.GetNearestNode(ResolveStart());
-        Vector3 goalNode  = GraphBuilder.Instance.GetNearestNode(ResolveGoal());
+        Vector3 start = ResolveStart();
+        Vector3 goal = ResolveGoal();
+        Vector3 startNode = GraphBuilder.Instance.GetNearestNodeReachableTo(start, goal);
+        Vector3 goalNode  = GraphBuilder.Instance.GetNearestNode(goal);
 
         // --- BFS (your script) ---
         bfsPath = (bfsSearcher != null)
@@ -192,20 +201,66 @@ public class PathVisualizer : MonoBehaviour
 
     private Vector3 ResolveStart()
     {
-        // Priority: pinned Transform → DemonDog in scene → origin
-        if (startTransform != null) return startTransform.position;
+        if (usePinnedTransforms && startTransform != null) return startTransform.position;
 
         DemonDogController dog = FindObjectOfType<DemonDogController>();
-        return dog != null ? dog.transform.position : Vector3.zero;
+        if (dog != null) return dog.transform.position;
+
+        IntelligentAgent intelligentAgent = FindObjectOfType<IntelligentAgent>();
+        if (intelligentAgent != null) return intelligentAgent.transform.position;
+
+        Transform spawnPoint = FindAgentSpawnPoint();
+        return spawnPoint != null ? spawnPoint.position : Vector3.zero;
     }
 
     private Vector3 ResolveGoal()
     {
-        // Priority: pinned Transform → tagged Player → origin
-        if (goalTransform != null) return goalTransform.position;
+        if (usePinnedTransforms && goalTransform != null) return goalTransform.position;
 
-        GameObject hero = GameObject.FindGameObjectWithTag("Player");
+        GameObject hero = null;
+
+        try
+        {
+            hero = GameObject.FindGameObjectWithTag("Player");
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes.
+        }
+
+        if (hero == null)
+        {
+            hero = GameObject.Find("Player");
+        }
+
         return hero != null ? hero.transform.position : Vector3.zero;
+    }
+
+    private Transform FindAgentSpawnPoint()
+    {
+        try
+        {
+            GameObject[] taggedPoints = GameObject.FindGameObjectsWithTag("AgentSpawn");
+            if (taggedPoints.Length > 0)
+            {
+                return taggedPoints[0].transform;
+            }
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes.
+        }
+
+        Transform[] allTransforms = FindObjectsOfType<Transform>();
+        foreach (Transform candidate in allTransforms)
+        {
+            if (candidate.name.StartsWith("AgentSpawn"))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     // -------------------------------------------------------------------------

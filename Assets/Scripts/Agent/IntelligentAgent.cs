@@ -16,7 +16,7 @@ public class IntelligentAgent : MonoBehaviour
     public float waypointReachDistance = 0.15f;
     public float rotationSpeed = 8f;
 
-    private readonly List<Node> currentPath = new List<Node>();
+    private readonly List<Vector3> currentPath = new List<Vector3>();
 
     private float pathUpdateTimer;
     private int currentPathIndex;
@@ -25,7 +25,7 @@ public class IntelligentAgent : MonoBehaviour
     {
         if (pathfinder == null)
         {
-            pathfinder = FindFirstObjectByType<AStarSearch>();
+            ResolvePathfinder();
         }
     }
 
@@ -38,6 +38,16 @@ public class IntelligentAgent : MonoBehaviour
 
     private void Update()
     {
+        if (player == null)
+        {
+            ResolvePlayer();
+        }
+
+        if (pathfinder == null)
+        {
+            ResolvePathfinder();
+        }
+
         if (player == null || pathfinder == null)
         {
             return;
@@ -64,7 +74,24 @@ public class IntelligentAgent : MonoBehaviour
     {
         pathUpdateTimer = 0f;
         currentPath.Clear();
-        currentPath.AddRange(pathfinder.FindPath(transform.position, player.position));
+
+        if (GraphBuilder.Instance != null && GraphBuilder.Instance.AdjacencyList != null)
+        {
+            Vector3 startNode = GraphBuilder.Instance.GetNearestNodeReachableTo(transform.position, player.position);
+            Vector3 goalNode = GraphBuilder.Instance.GetNearestNode(player.position);
+            currentPath.AddRange(pathfinder.FindPath(
+                GraphBuilder.Instance.AdjacencyList,
+                startNode,
+                goalNode));
+        }
+        else
+        {
+            List<Node> nodePath = pathfinder.FindPath(transform.position, player.position);
+            for (int i = 0; i < nodePath.Count; i++)
+            {
+                currentPath.Add(nodePath[i].worldPosition);
+            }
+        }
 
         currentPathIndex = GetBestPathIndexForCurrentPosition();
     }
@@ -76,7 +103,7 @@ public class IntelligentAgent : MonoBehaviour
             return;
         }
 
-        Vector3 targetPosition = currentPath[currentPathIndex].worldPosition;
+        Vector3 targetPosition = currentPath[currentPathIndex];
         targetPosition.y = transform.position.y;
 
         Vector3 moveDirection = targetPosition - transform.position;
@@ -113,8 +140,8 @@ public class IntelligentAgent : MonoBehaviour
 
         for (int i = 1; i < currentPath.Count; i++)
         {
-            Vector3 start = currentPath[i - 1].worldPosition + Vector3.up * 0.2f;
-            Vector3 end = currentPath[i].worldPosition + Vector3.up * 0.2f;
+            Vector3 start = currentPath[i - 1] + Vector3.up * 0.2f;
+            Vector3 end = currentPath[i] + Vector3.up * 0.2f;
             Debug.DrawLine(start, end, Color.red);
         }
     }
@@ -138,7 +165,7 @@ public class IntelligentAgent : MonoBehaviour
 
         for (int i = 0; i < currentPath.Count; i++)
         {
-            float distance = Vector3.Distance(flatAgentPosition, GetFlatPosition(currentPath[i].worldPosition));
+            float distance = Vector3.Distance(flatAgentPosition, GetFlatPosition(currentPath[i]));
             if (distance < closestDistance)
             {
                 closestDistance = distance;
@@ -150,7 +177,7 @@ public class IntelligentAgent : MonoBehaviour
         {
             float distanceToCurrentNode = Vector3.Distance(
                 flatAgentPosition,
-                GetFlatPosition(currentPath[closestIndex].worldPosition));
+                GetFlatPosition(currentPath[closestIndex]));
 
             if (distanceToCurrentNode > waypointReachDistance * 1.5f)
             {
@@ -161,5 +188,48 @@ public class IntelligentAgent : MonoBehaviour
         }
 
         return closestIndex;
+    }
+
+    public void SetTarget(Transform newPlayer)
+    {
+        player = newPlayer;
+    }
+
+    public void SetPathfinder(AStarSearch newPathfinder)
+    {
+        pathfinder = newPathfinder;
+    }
+
+    private void ResolvePlayer()
+    {
+        GameObject hero = null;
+
+        try
+        {
+            hero = GameObject.FindGameObjectWithTag("Player");
+        }
+        catch (UnityException)
+        {
+            // Tag may not exist in older scenes.
+        }
+
+        if (hero == null)
+        {
+            hero = GameObject.Find("Player");
+        }
+
+        if (hero != null)
+        {
+            player = hero.transform;
+        }
+    }
+
+    private void ResolvePathfinder()
+    {
+        pathfinder = FindFirstObjectByType<AStarSearch>();
+        if (pathfinder == null)
+        {
+            pathfinder = gameObject.AddComponent<AStarSearch>();
+        }
     }
 }

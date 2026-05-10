@@ -23,8 +23,8 @@ public class GraphBuilder : MonoBehaviour
 
     void Awake()
     {
-        Instance = this;
         BuildGraph();
+        RegisterInstance();
     }
 
     public void BuildGraph()
@@ -65,7 +65,148 @@ public class GraphBuilder : MonoBehaviour
             }
         }
 
-        Debug.Log($"[GraphBuilder] Built graph: {AdjacencyList.Count} walkable nodes");
+        Debug.Log($"[GraphBuilder] Built graph on {name}: {AdjacencyList.Count} walkable nodes");
+    }
+
+    public Vector3 GetNearestNode(Vector3 worldPos)
+    {
+        if (AdjacencyList == null || AdjacencyList.Count == 0)
+            return worldPos;
+
+        Vector3 best = worldPos;
+        float bestDist = float.PositiveInfinity;
+        foreach (var node in AdjacencyList.Keys)
+        {
+            float d = (node - worldPos).sqrMagnitude;
+            if (d < bestDist)
+            {
+                bestDist = d;
+                best = node;
+            }
+        }
+
+        return best;
+    }
+
+    public Vector3 GetNearestNodeReachableTo(Vector3 worldPos, Vector3 anchorWorldPos)
+    {
+        HashSet<Vector3> component = GetConnectedComponent(GetNearestNode(anchorWorldPos));
+        if (component.Count == 0)
+            return GetNearestNode(worldPos);
+
+        return GetNearestNodeInSet(worldPos, component, null);
+    }
+
+    public Vector3 GetNearestNodeReachableTo(
+        Vector3 worldPos,
+        Vector3 anchorWorldPos,
+        HashSet<Vector3> excludedNodes)
+    {
+        HashSet<Vector3> component = GetConnectedComponent(GetNearestNode(anchorWorldPos));
+        if (component.Count == 0)
+            return GetNearestNode(worldPos);
+
+        return GetNearestNodeInSet(worldPos, component, excludedNodes);
+    }
+
+    public bool HasPath(Vector3 start, Vector3 goal)
+    {
+        if (AdjacencyList == null || !AdjacencyList.ContainsKey(start) || !AdjacencyList.ContainsKey(goal))
+            return false;
+
+        HashSet<Vector3> component = GetConnectedComponent(start);
+        return component.Contains(goal);
+    }
+
+    private void RegisterInstance()
+    {
+        if (Instance == null || ShouldReplaceInstance(Instance, this))
+        {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning(
+                    $"[GraphBuilder] Multiple GraphBuilders found. Using {name} and ignoring {Instance.name}.");
+            }
+
+            Instance = this;
+        }
+        else if (Instance != this)
+        {
+            Debug.LogWarning(
+                $"[GraphBuilder] Multiple GraphBuilders found. Keeping active graph {Instance.name}; {name} is ignored.");
+        }
+    }
+
+    private static bool ShouldReplaceInstance(GraphBuilder current, GraphBuilder candidate)
+    {
+        bool currentDetectsWalls = current.wallLayer.value != 0;
+        bool candidateDetectsWalls = candidate.wallLayer.value != 0;
+
+        if (candidateDetectsWalls != currentDetectsWalls)
+            return candidateDetectsWalls;
+
+        float currentWalkableRatio = current.GetWalkableRatio();
+        float candidateWalkableRatio = candidate.GetWalkableRatio();
+        if (candidateWalkableRatio < currentWalkableRatio - 0.05f)
+            return true;
+
+        return false;
+    }
+
+    private float GetWalkableRatio()
+    {
+        int totalCells = Mathf.Max(1, gridCols * gridRows);
+        int walkableCells = AdjacencyList != null ? AdjacencyList.Count : 0;
+        return walkableCells / (float)totalCells;
+    }
+
+    private HashSet<Vector3> GetConnectedComponent(Vector3 start)
+    {
+        HashSet<Vector3> visited = new HashSet<Vector3>();
+        if (AdjacencyList == null || !AdjacencyList.ContainsKey(start))
+            return visited;
+
+        Queue<Vector3> frontier = new Queue<Vector3>();
+        frontier.Enqueue(start);
+        visited.Add(start);
+
+        while (frontier.Count > 0)
+        {
+            Vector3 current = frontier.Dequeue();
+            foreach (Vector3 next in AdjacencyList[current])
+            {
+                if (visited.Add(next))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        return visited;
+    }
+
+    private Vector3 GetNearestNodeInSet(
+        Vector3 worldPos,
+        HashSet<Vector3> candidates,
+        HashSet<Vector3> excludedNodes)
+    {
+        Vector3 best = worldPos;
+        float bestDist = float.PositiveInfinity;
+
+        foreach (Vector3 node in candidates)
+        {
+            if (excludedNodes != null && excludedNodes.Contains(node))
+                continue;
+
+            float d = (node - worldPos).sqrMagnitude;
+            if (d < bestDist)
+            {
+                bestDist = d;
+                best = node;
+            }
+        }
+
+        return bestDist < float.PositiveInfinity ? best : GetNearestNode(worldPos);
     }
 
     public Vector3 GetNearestNode(Vector3 worldPos)
