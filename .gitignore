@@ -28,6 +28,7 @@
 
 # Visual Studio cache directory
 .vs/
+.vsconfig
 
 # Gradle cache directory
 .gradle/
@@ -44,6 +45,7 @@ ExportedObj/
 *.userprefs
 *.pidb
 *.booproj
+*.slnx
 *.svd
 *.pdb
 *.mdb
@@ -75,3 +77,43 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 # End of https://www.toptal.com/developers/gitignore/api/unity
+
+# Local/generated project extras
+.DS_Store
+**/.DS_Store
+/.dotnet_cli_home/
+/[Tt]esting/
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+/[Aa]ssets/[Ss]creenshots/
+/[Aa]ssets/[Ss]creenshots.meta
+/[Aa]ssets/[Mm]obile[Dd]ependency[Rr]esolver/
+/[Aa]ssets/[Mm]obile[Dd]ependency[Rr]esolver.meta
+/[Aa]ssets/[Rr]esources/
+/[Aa]ssets/[Rr]esources.meta
+/[Aa]ssets/[Mm]aterials/[Pp]layer[Pp]laceholder.mat
+/[Aa]ssets/[Mm]aterials/[Pp]layer[Pp]laceholder.mat.meta
+/[Aa]ssets/[Mm]odels/[Cc]haracters/[Pp]layer[Cc]haracter.fbx
+/[Aa]ssets/[Mm]odels/[Cc]haracters/[Pp]layer[Cc]haracter.fbx.meta
+/[Aa]ssets/[Mm]odels/[Cc]haracters/proportional_low_poly_man__free_download.glb
+/[Aa]ssets/[Mm]odels/[Cc]haracters/proportional_low_poly_man__free_download.glb.meta
+
+# Keep the tracked core settings small; ignore additional Unity-generated settings unless explicitly added.
+/[Pp]roject[Ss]ettings/[Aa]udio[Mm]anager.asset
+/[Pp]roject[Ss]ettings/[Cc]luster[Ii]nput[Mm]anager.asset
+/[Pp]roject[Ss]ettings/[Dd]ynamics[Mm]anager.asset
+/[Pp]roject[Ss]ettings/[Ee]ditor[Bb]uild[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/[Ee]ditor[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/[Gg]raphics[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/[Mm]emory[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/[Mm]ultiplayer[Mm]anager.asset
+/[Pp]roject[Ss]ettings/[Nn]av[Mm]esh[Aa]reas.asset
+/[Pp]roject[Ss]ettings/[Pp]ackage[Mm]anager[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/[Pp]hysics2D[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/[Pp]reset[Mm]anager.asset
+/[Pp]roject[Ss]ettings/[Pp]roject[Vv]ersion.txt
+/[Pp]roject[Ss]ettings/[Qq]uality[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/[Tt]ime[Mm]anager.asset
+/[Pp]roject[Ss]ettings/[Uu]nity[Cc]onnect[Ss]ettings.asset
+/[Pp]roject[Ss]ettings/VFXManager.asset
+/[Pp]roject[Ss]ettings/[Vv]ersion[Cc]ontrol[Ss]ettings.asset
