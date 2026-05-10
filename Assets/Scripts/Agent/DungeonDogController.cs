@@ -251,17 +251,21 @@ public class DungeonDogController : MonoBehaviour
 
     private void ResolveModelRoot()
     {
-        if (modelRoot != null)
-        {
-            return;
-        }
-
         Transform meshyModel = transform.Find("MeshyDogModel");
         if (meshyModel != null)
         {
-            modelRoot = meshyModel;
+            if (modelRoot != meshyModel)
+            {
+                modelRoot = meshyModel;
+            }
+
             useProceduralRunAnimation = false;
             DisableLegacyDogModel();
+            return;
+        }
+
+        if (modelRoot != null)
+        {
             return;
         }
 
@@ -326,33 +330,70 @@ public class DungeonDogController : MonoBehaviour
             ResolveModelRoot();
         }
 
-        if (modelRoot == null || animator == null || animator.transform != transform)
+        if (modelRoot == null)
         {
             return;
         }
 
-        RuntimeAnimatorController controller = animator.runtimeAnimatorController;
-        Avatar avatar = animator.avatar;
-        AnimatorCullingMode cullingMode = animator.cullingMode;
-        AnimatorUpdateMode updateMode = animator.updateMode;
-
+        Animator parentAnimator = GetComponent<Animator>();
         Animator modelAnimator = modelRoot.GetComponent<Animator>();
+
+        RuntimeAnimatorController controller = null;
+        Avatar avatar = null;
+        AnimatorCullingMode cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        AnimatorUpdateMode updateMode = AnimatorUpdateMode.Normal;
+
+        if (modelAnimator != null)
+        {
+            controller = modelAnimator.runtimeAnimatorController;
+            avatar = modelAnimator.avatar;
+            cullingMode = modelAnimator.cullingMode;
+            updateMode = modelAnimator.updateMode;
+        }
+        else if (animator != null)
+        {
+            controller = animator.runtimeAnimatorController;
+            avatar = animator.avatar;
+            cullingMode = animator.cullingMode;
+            updateMode = animator.updateMode;
+        }
+        else if (parentAnimator != null)
+        {
+            controller = parentAnimator.runtimeAnimatorController;
+            avatar = parentAnimator.avatar;
+            cullingMode = parentAnimator.cullingMode;
+            updateMode = parentAnimator.updateMode;
+        }
+
         if (modelAnimator == null)
         {
             modelAnimator = modelRoot.gameObject.AddComponent<Animator>();
         }
 
-        modelAnimator.runtimeAnimatorController = controller;
-        modelAnimator.avatar = avatar;
+        if (modelAnimator.runtimeAnimatorController == null && controller != null)
+        {
+            modelAnimator.runtimeAnimatorController = controller;
+        }
+
+        if (modelAnimator.avatar == null && avatar != null)
+        {
+            modelAnimator.avatar = avatar;
+        }
+
         modelAnimator.cullingMode = cullingMode;
         modelAnimator.updateMode = updateMode;
         modelAnimator.applyRootMotion = false;
         modelAnimator.enabled = true;
 
-        animator.enabled = false;
+        if (parentAnimator != null && parentAnimator != modelAnimator)
+        {
+            parentAnimator.applyRootMotion = false;
+            parentAnimator.enabled = false;
+        }
+
         animator = modelAnimator;
 
-        Debug.Log("[DemonDog] Moved Animator control from the moving parent to MeshyDogModel.", this);
+        Debug.Log("[DemonDog] Animator control verified on MeshyDogModel with root motion disabled.", this);
     }
 
     private Transform FindDetachedMeshyDogModel()

@@ -78,6 +78,14 @@ public static class DemonDogMeshySetup
         if (oldModel != null)
         {
             oldModel.gameObject.SetActive(false);
+
+            Animator oldAnimator = oldModel.GetComponent<Animator>();
+            if (oldAnimator != null)
+            {
+                Object.DestroyImmediate(oldAnimator, true);
+            }
+
+            EditorUtility.SetDirty(oldModel.gameObject);
         }
 
         Transform meshyModel = dog.transform.Find("MeshyDogModel");
@@ -97,12 +105,6 @@ public static class DemonDogMeshySetup
             meshyModel.localPosition = Vector3.zero;
             meshyModel.localRotation = Quaternion.identity;
             meshyModel.localScale = Vector3.one * 120f;
-
-            Animator nestedAnimator = meshyModel.GetComponent<Animator>();
-            if (nestedAnimator != null)
-            {
-                Object.DestroyImmediate(nestedAnimator);
-            }
 
             dog.modelRoot = meshyModel;
             dog.useProceduralRunAnimation = false;
