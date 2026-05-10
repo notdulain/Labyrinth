@@ -1,86 +1,123 @@
-using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Generic min-heap priority queue used by pathfinding algorithms.
+/// A simple min-priority queue for A* nodes.
 /// </summary>
-public class PriorityQueue<T>
+public class PriorityQueue
 {
-    private readonly List<(T Item, float Priority)> heap = new List<(T Item, float Priority)>();
+    private readonly List<Node> items = new List<Node>();
 
-    public int Count => heap.Count;
-
-    public void Enqueue(T item, float priority)
+    public int Count
     {
-        heap.Add((item, priority));
-        HeapifyUp(heap.Count - 1);
+        get { return items.Count; }
     }
 
-    public T Dequeue()
+    public void Clear()
     {
-        if (heap.Count == 0)
-        {
-            throw new InvalidOperationException("Cannot dequeue from an empty queue.");
-        }
-
-        T item = heap[0].Item;
-        int lastIndex = heap.Count - 1;
-        heap[0] = heap[lastIndex];
-        heap.RemoveAt(lastIndex);
-
-        if (heap.Count > 0)
-        {
-            HeapifyDown(0);
-        }
-
-        return item;
+        items.Clear();
     }
 
-    private void HeapifyUp(int index)
+    public void Enqueue(Node node)
+    {
+        items.Add(node);
+        SortUp(items.Count - 1);
+    }
+
+    public Node Dequeue()
+    {
+        if (items.Count == 0)
+        {
+            return null;
+        }
+
+        Node firstItem = items[0];
+        int lastIndex = items.Count - 1;
+
+        items[0] = items[lastIndex];
+        items.RemoveAt(lastIndex);
+
+        if (items.Count > 0)
+        {
+            SortDown(0);
+        }
+
+        return firstItem;
+    }
+
+    public bool Contains(Node node)
+    {
+        return items.Contains(node);
+    }
+
+    public void UpdateItem(Node node)
+    {
+        int index = items.IndexOf(node);
+        if (index < 0)
+        {
+            return;
+        }
+
+        SortUp(index);
+    }
+
+    private void SortUp(int index)
     {
         while (index > 0)
         {
-            int parent = (index - 1) / 2;
-            if (heap[parent].Priority <= heap[index].Priority)
+            int parentIndex = (index - 1) / 2;
+
+            if (Compare(items[index], items[parentIndex]) >= 0)
             {
                 break;
             }
 
-            Swap(parent, index);
-            index = parent;
+            Swap(index, parentIndex);
+            index = parentIndex;
         }
     }
 
-    private void HeapifyDown(int index)
+    private void SortDown(int index)
     {
         while (true)
         {
-            int left = (2 * index) + 1;
-            int right = (2 * index) + 2;
-            int smallest = index;
+            int leftChildIndex = index * 2 + 1;
+            int rightChildIndex = index * 2 + 2;
+            int smallestIndex = index;
 
-            if (left < heap.Count && heap[left].Priority < heap[smallest].Priority)
+            if (leftChildIndex < items.Count && Compare(items[leftChildIndex], items[smallestIndex]) < 0)
             {
-                smallest = left;
+                smallestIndex = leftChildIndex;
             }
 
-            if (right < heap.Count && heap[right].Priority < heap[smallest].Priority)
+            if (rightChildIndex < items.Count && Compare(items[rightChildIndex], items[smallestIndex]) < 0)
             {
-                smallest = right;
+                smallestIndex = rightChildIndex;
             }
 
-            if (smallest == index)
+            if (smallestIndex == index)
             {
                 break;
             }
 
-            Swap(index, smallest);
-            index = smallest;
+            Swap(index, smallestIndex);
+            index = smallestIndex;
         }
     }
 
-    private void Swap(int a, int b)
+    private int Compare(Node a, Node b)
     {
-        (heap[a], heap[b]) = (heap[b], heap[a]);
+        if (a.fCost != b.fCost)
+        {
+            return a.fCost.CompareTo(b.fCost);
+        }
+
+        return a.hCost.CompareTo(b.hCost);
+    }
+
+    private void Swap(int firstIndex, int secondIndex)
+    {
+        Node temporary = items[firstIndex];
+        items[firstIndex] = items[secondIndex];
+        items[secondIndex] = temporary;
     }
 }
