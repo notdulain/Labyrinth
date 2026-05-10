@@ -16,6 +16,7 @@ public class GraphBuilder : MonoBehaviour
     public float checkBoxRadius = 1.0f;
 
     public Dictionary<Vector3, List<Vector3>> AdjacencyList { get; private set; }
+    public bool HasGraph => AdjacencyList != null && AdjacencyList.Count > 0;
 
     void Awake()
     {
@@ -82,6 +83,46 @@ public class GraphBuilder : MonoBehaviour
         }
 
         return best;
+    }
+
+    public bool TryGetNearestWalkableNode(Vector3 worldPos, out Vector3 node)
+    {
+        node = default;
+        if (!HasGraph)
+            return false;
+
+        node = GetNearestNode(worldPos);
+        return AdjacencyList.ContainsKey(node);
+    }
+
+    public bool IsWorldPositionWalkable(Vector3 worldPos)
+    {
+        Vector3 sample = new Vector3(worldPos.x, gridOrigin.y + 0.5f, worldPos.z);
+        return IsWalkable(sample);
+    }
+
+    public HashSet<Vector3> GetConnectedComponentNodes(Vector3 start)
+    {
+        return GetConnectedComponent(start);
+    }
+
+    public int GetConnectedComponentSize(Vector3 start)
+    {
+        return GetConnectedComponent(start).Count;
+    }
+
+    public bool TryGetNearestNodeInComponent(
+        Vector3 worldPos,
+        HashSet<Vector3> component,
+        out Vector3 node,
+        HashSet<Vector3> excludedNodes = null)
+    {
+        node = default;
+        if (component == null || component.Count == 0)
+            return false;
+
+        node = GetNearestNodeInSet(worldPos, component, excludedNodes);
+        return component.Contains(node);
     }
 
     public Vector3 GetNearestNodeReachableTo(Vector3 worldPos, Vector3 anchorWorldPos)
@@ -217,7 +258,7 @@ public class GraphBuilder : MonoBehaviour
     bool IsWalkable(Vector3 worldPos)
     {
         Vector3 halfExtents = Vector3.one * (checkBoxRadius * 0.5f);
-        return !Physics.CheckBox(worldPos, halfExtents, Quaternion.identity, wallLayer);
+        return !Physics.CheckBox(worldPos, halfExtents, Quaternion.identity, wallLayer, QueryTriggerInteraction.Ignore);
     }
 
     void OnDrawGizmos()

@@ -33,6 +33,11 @@ public class SpawnManager : MonoBehaviour
             return;
         }
 
+        if (UseExistingSceneDogs())
+        {
+            return;
+        }
+
         if (GraphBuilder.Instance == null || GraphBuilder.Instance.AdjacencyList == null)
         {
             Debug.LogWarning("[SpawnManager] GraphBuilder not ready; cannot spawn.");
@@ -40,6 +45,24 @@ public class SpawnManager : MonoBehaviour
         }
 
         SpawnDogs();
+    }
+
+    private bool UseExistingSceneDogs()
+    {
+        DemonDogController[] existingDogs = FindObjectsByType<DemonDogController>(FindObjectsSortMode.None);
+        if (existingDogs == null || existingDogs.Length == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < existingDogs.Length; i++)
+        {
+            ConfigureSpawnedAgent(existingDogs[i].gameObject);
+            spawnedDogs.Add(existingDogs[i].gameObject);
+        }
+
+        Debug.Log($"[SpawnManager] Using {existingDogs.Length} demon dog(s) already placed in the scene.");
+        return true;
     }
 
     private void SpawnDogs()
