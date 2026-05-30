@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
+using System.Collections;
 
 /// <summary>
 /// Spawns agents at the AgentSpawn markers placed in the level.
@@ -14,6 +15,7 @@ public class SpawnManager : MonoBehaviour
     [SerializeField] private float minDistanceFromTarget = 8f;
     [SerializeField] private string spawnPointTag = "AgentSpawn";
     [SerializeField] private string spawnPointNamePrefix = "AgentSpawn";
+    [SerializeField] private float graphReadyTimeout = 5f;
 
     [Header("Target")]
     [SerializeField] private Transform target;
@@ -21,7 +23,7 @@ public class SpawnManager : MonoBehaviour
 
     private readonly List<GameObject> spawnedDogs = new List<GameObject>();
 
-    private void Start()
+    private IEnumerator Start()
     {
         if (target == null)
         {
@@ -31,18 +33,23 @@ public class SpawnManager : MonoBehaviour
         if (demonDogPrefab == null)
         {
             Debug.LogError("[SpawnManager] No agent prefab assigned.");
-            return;
+            yield break;
         }
 
         if (UseExistingSceneDogs())
         {
-            return;
+            yield break;
         }
 
-        if (GraphBuilder.Instance == null || GraphBuilder.Instance.AdjacencyList == null)
+        float deadline = Time.time + graphReadyTimeout;
+        while ((GraphBuilder.Instance == null || !GraphBuilder.Instance.HasGraph) && Time.time < deadline)
         {
-            Debug.LogWarning("[SpawnManager] GraphBuilder not ready; cannot spawn.");
-            return;
+            yield return null;
+        }
+
+        if (GraphBuilder.Instance == null || !GraphBuilder.Instance.HasGraph)
+        {
+            Debug.LogWarning("[SpawnManager] GraphBuilder not ready; spawning at scene markers without graph validation.");
         }
 
         SpawnDogs();
@@ -80,26 +87,37 @@ public class SpawnManager : MonoBehaviour
 
     private void SpawnAtDefinedPoints(List<Transform> spawnPoints)
     {
+        HashSet<Vector3> usedNodes = new HashSet<Vector3>();
         Vector3 anchorPosition = target != null ? target.position : spawnPoints[0].position;
         int actual = Mathf.Min(spawnCount, spawnPoints.Count);
         for (int i = 0; i < actual; i++)
         {
             Transform spawnPoint = spawnPoints[i];
+            Vector3 spawnPosition = spawnPoint.position;
 
-            GameObject dog = Instantiate(demonDogPrefab, spawnPoint.position, spawnPoint.rotation);
+            if (GraphBuilder.Instance != null && GraphBuilder.Instance.HasGraph)
+            {
+                spawnPosition = GraphBuilder.Instance.GetNearestNodeReachableTo(
+                    spawnPoint.position,
+                    anchorPosition,
+                    usedNodes);
+                usedNodes.Add(spawnPosition);
+            }
+
+            GameObject dog = Instantiate(demonDogPrefab, spawnPosition, spawnPoint.rotation);
             dog.name = $"{GetSpawnedAgentNamePrefix()}_{i + 1}";
             ConfigureSpawnedAgent(dog);
-            dog.transform.SetPositionAndRotation(spawnPoint.position, spawnPoint.rotation);
+            dog.transform.SetPositionAndRotation(spawnPosition, spawnPoint.rotation);
             spawnedDogs.Add(dog);
 
-            Vector3 nearestReachable = GraphBuilder.Instance.GetNearestNodeReachableTo(
-                spawnPoint.position,
-                anchorPosition);
-            if (Vector3.Distance(spawnPoint.position, nearestReachable) > GraphBuilder.Instance.cellSize)
+            if (GraphBuilder.Instance != null && GraphBuilder.Instance.HasGraph)
             {
-                Debug.LogWarning(
-                    $"[SpawnManager] {spawnPoint.name} is not on the player's reachable graph. " +
-                    $"{dog.name} will spawn at the marker but may be unable to path to the target.");
+                if (Vector3.Distance(spawnPoint.position, spawnPosition) > GraphBuilder.Instance.cellSize)
+                {
+                    Debug.LogWarning(
+                        $"[SpawnManager] {spawnPoint.name} was not on the player's reachable graph. " +
+                        $"Spawned {dog.name} at nearest reachable node {spawnPosition}.");
+                }
             }
         }
 
@@ -108,6 +126,12 @@ public class SpawnManager : MonoBehaviour
 
     private void SpawnAtGraphNodes()
     {
+        if (GraphBuilder.Instance == null || !GraphBuilder.Instance.HasGraph)
+        {
+            Debug.LogWarning("[SpawnManager] No graph and no AgentSpawn markers are available; cannot spawn.");
+            return;
+        }
+
         List<Vector3> walkableNodes = new List<Vector3>(GraphBuilder.Instance.AdjacencyList.Keys);
         if (walkableNodes.Count == 0)
         {

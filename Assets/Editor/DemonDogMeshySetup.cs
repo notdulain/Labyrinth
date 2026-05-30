@@ -9,6 +9,7 @@ public static class DemonDogMeshySetup
     private const string CharacterPath = "Assets/Models/Characters/MeshyQuadruped/Meshy_AI_quadruped_Character_output.fbx";
     private const string WalkPath = "Assets/Models/Characters/MeshyQuadruped/Meshy_AI_quadruped_Animation_Walking_frame_rate_60.fbx";
     private const string ControllerPath = "Assets/Animations/DungeonDogAnimator.controller";
+    private const string DemonDogPrefabPath = "Assets/Prefabs/DemonDog.prefab";
 
     [MenuItem("Labyrinth/Demon Dog/Setup Meshy Walking Animation")]
     public static void Setup()
@@ -58,7 +59,15 @@ public static class DemonDogMeshySetup
         runState.motion = walkClip;
         runState.speed = 1.2f;
 
-        SetupSceneDog(characterAvatar, controller);
+        GameObject characterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CharacterPath);
+        if (characterPrefab == null)
+        {
+            Debug.LogError($"[DemonDogMeshySetup] Meshy character prefab could not be loaded from {CharacterPath}.");
+            return;
+        }
+
+        SetupPrefabDog(characterPrefab, characterAvatar, controller);
+        SetupSceneDogs(characterPrefab, characterAvatar, controller);
 
         EditorUtility.SetDirty(controller);
         AssetDatabase.SaveAssets();
@@ -66,14 +75,53 @@ public static class DemonDogMeshySetup
         Debug.Log($"[DemonDogMeshySetup] Assigned Meshy walking clip '{walkClip.name}' to DemonDog Run state.");
     }
 
-    private static void SetupSceneDog(Avatar characterAvatar, AnimatorController controller)
+    private static void SetupPrefabDog(GameObject characterPrefab, Avatar characterAvatar, AnimatorController controller)
     {
-        DemonDogController dog = Object.FindAnyObjectByType<DemonDogController>();
-        if (dog == null)
+        GameObject prefabRoot = PrefabUtility.LoadPrefabContents(DemonDogPrefabPath);
+        try
+        {
+            DemonDogController dog = prefabRoot.GetComponent<DemonDogController>();
+            if (dog == null)
+            {
+                Debug.LogError($"[DemonDogMeshySetup] DemonDogController was not found on {DemonDogPrefabPath}.");
+                return;
+            }
+
+            ConfigureDog(dog, characterPrefab, characterAvatar, controller, true);
+            PrefabUtility.SaveAsPrefabAsset(prefabRoot, DemonDogPrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(prefabRoot);
+        }
+    }
+
+    private static void SetupSceneDogs(GameObject characterPrefab, Avatar characterAvatar, AnimatorController controller)
+    {
+        DemonDogController[] dogs = Object.FindObjectsByType<DemonDogController>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        if (dogs.Length == 0)
         {
             return;
         }
 
+        foreach (DemonDogController dog in dogs)
+        {
+            ConfigureDog(dog, characterPrefab, characterAvatar, controller, false);
+            EditorSceneManager.MarkSceneDirty(dog.gameObject.scene);
+        }
+
+        EditorSceneManager.SaveOpenScenes();
+    }
+
+    private static void ConfigureDog(
+        DemonDogController dog,
+        GameObject characterPrefab,
+        Avatar characterAvatar,
+        AnimatorController controller,
+        bool editingPrefabAsset)
+    {
         Transform oldModel = dog.transform.Find("DogModel");
         if (oldModel != null)
         {
@@ -91,12 +139,20 @@ public static class DemonDogMeshySetup
         Transform meshyModel = dog.transform.Find("MeshyDogModel");
         if (meshyModel == null)
         {
-            GameObject characterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CharacterPath);
             GameObject instance = PrefabUtility.InstantiatePrefab(characterPrefab, dog.transform) as GameObject;
+            if (instance == null)
+            {
+                instance = Object.Instantiate(characterPrefab, dog.transform);
+            }
+
             if (instance != null)
             {
                 instance.name = "MeshyDogModel";
                 meshyModel = instance.transform;
+            }
+            else
+            {
+                Debug.LogError("[DemonDogMeshySetup] Failed to instantiate MeshyDogModel.");
             }
         }
 
@@ -108,6 +164,7 @@ public static class DemonDogMeshySetup
 
             dog.modelRoot = meshyModel;
             dog.useProceduralRunAnimation = false;
+            EditorUtility.SetDirty(meshyModel.gameObject);
             EditorUtility.SetDirty(dog);
         }
 
@@ -139,7 +196,9 @@ public static class DemonDogMeshySetup
             EditorUtility.SetDirty(dog);
         }
 
-        EditorSceneManager.MarkSceneDirty(dog.gameObject.scene);
-        EditorSceneManager.SaveScene(dog.gameObject.scene);
+        if (editingPrefabAsset)
+        {
+            EditorUtility.SetDirty(dog.gameObject);
+        }
     }
 }
