@@ -35,6 +35,10 @@ public class PathVisualizer : MonoBehaviour
     [Header("Refresh rate")]
     [SerializeField] private float refreshInterval = 0.5f;
 
+    [Header("Game-view line rendering")]
+    [SerializeField] private float lineWidth = 0.15f;
+    [SerializeField] private float lineHeightOffset = 0.4f;
+
     private bool isVisible;
     private bool hasCurrentDogPath;
     private float refreshTimer;
@@ -45,9 +49,16 @@ public class PathVisualizer : MonoBehaviour
     private List<Vector3> currentDogPath = new List<Vector3>();
     private MultiAlgorithmPathfinder pathfinder;
 
+    private LineRenderer bfsLine;
+    private LineRenderer astarLine;
+    private LineRenderer dijkstraLine;
+    private LineRenderer dogLine;
+
     private void Start()
     {
         pathfinder = FindObjectOfType<MultiAlgorithmPathfinder>();
+        EnsureLineRenderers();
+        ApplyVisibilityToLineRenderers();
         Debug.Log("[PathVisualizer] Ready. Press P to toggle path visualization.");
     }
 
@@ -86,11 +97,14 @@ public class PathVisualizer : MonoBehaviour
         currentDogPath = path != null ? new List<Vector3>(path) : new List<Vector3>();
         currentAlgorithm = algorithm;
         hasCurrentDogPath = currentDogPath.Count > 0;
+        UpdateLineRenderer(dogLine, currentDogPath, GetAlgorithmColor(currentAlgorithm));
+        ApplyVisibilityToLineRenderers();
     }
 
     public void SetVisible(bool visible)
     {
         isVisible = visible;
+        EnsureLineRenderers();
         if (isVisible)
         {
             refreshTimer = 0f;
@@ -98,9 +112,11 @@ public class PathVisualizer : MonoBehaviour
             {
                 RefreshAllPaths();
             }
+            ApplyVisibilityToLineRenderers();
         }
         else
         {
+            ApplyVisibilityToLineRenderers();
             Debug.Log("[PathVisualizer] Visualization OFF.");
         }
     }
@@ -153,11 +169,103 @@ public class PathVisualizer : MonoBehaviour
             }
         }
 
+        UpdateLineRenderer(bfsLine, bfsPath, Color.blue);
+        UpdateLineRenderer(astarLine, astarPath, Color.green);
+        UpdateLineRenderer(dijkstraLine, dijkstraPath, Color.yellow);
+        ApplyVisibilityToLineRenderers();
+
         Debug.Log(
             $"[PathVisualizer] ON  |  " +
             $"BFS: {bfsPath.Count} nodes (blue)  |  " +
             $"A*: {astarPath.Count} nodes (green)  |  " +
             $"Dijkstra: {dijkstraPath.Count} nodes (yellow)");
+    }
+
+    private void EnsureLineRenderers()
+    {
+        if (bfsLine == null) bfsLine = CreateLineRenderer("_LR_BFS", Color.blue);
+        if (astarLine == null) astarLine = CreateLineRenderer("_LR_AStar", Color.green);
+        if (dijkstraLine == null) dijkstraLine = CreateLineRenderer("_LR_Dijkstra", Color.yellow);
+        if (dogLine == null) dogLine = CreateLineRenderer("_LR_Dog", Color.green);
+    }
+
+    private LineRenderer CreateLineRenderer(string childName, Color color)
+    {
+        Transform existing = transform.Find(childName);
+        GameObject go = existing != null ? existing.gameObject : new GameObject(childName);
+        go.transform.SetParent(transform, false);
+        LineRenderer lr = go.GetComponent<LineRenderer>();
+        if (lr == null) lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = true;
+        lr.positionCount = 0;
+        lr.startWidth = lineWidth;
+        lr.endWidth = lineWidth;
+        lr.numCapVertices = 2;
+        lr.numCornerVertices = 2;
+        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lr.receiveShadows = false;
+        lr.alignment = LineAlignment.View;
+
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null) shader = Shader.Find("Unlit/Color");
+        if (shader == null) shader = Shader.Find("Hidden/Internal-Colored");
+        Material mat = new Material(shader) { color = color };
+        lr.material = mat;
+        lr.startColor = color;
+        lr.endColor = color;
+        lr.enabled = false;
+        return lr;
+    }
+
+    private void UpdateLineRenderer(LineRenderer lr, List<Vector3> path, Color color)
+    {
+        if (lr == null) return;
+        lr.startColor = color;
+        lr.endColor = color;
+        if (lr.material != null) lr.material.color = color;
+
+        if (path == null || path.Count < 2)
+        {
+            lr.positionCount = 0;
+            return;
+        }
+
+        lr.positionCount = path.Count;
+        for (int i = 0; i < path.Count; i++)
+        {
+            Vector3 p = path[i];
+            p.y += lineHeightOffset;
+            lr.SetPosition(i, p);
+        }
+    }
+
+    private void ApplyVisibilityToLineRenderers()
+    {
+        if (bfsLine == null || astarLine == null || dijkstraLine == null || dogLine == null) return;
+
+        if (!isVisible)
+        {
+            bfsLine.enabled = false;
+            astarLine.enabled = false;
+            dijkstraLine.enabled = false;
+            dogLine.enabled = false;
+            return;
+        }
+
+        if (hasCurrentDogPath)
+        {
+            bfsLine.enabled = false;
+            astarLine.enabled = false;
+            dijkstraLine.enabled = false;
+            dogLine.enabled = dogLine.positionCount >= 2;
+        }
+        else
+        {
+            dogLine.enabled = false;
+            bfsLine.enabled = bfsLine.positionCount >= 2;
+            astarLine.enabled = astarLine.positionCount >= 2;
+            dijkstraLine.enabled = dijkstraLine.positionCount >= 2;
+        }
     }
 
     private Vector3 ResolveStart()
