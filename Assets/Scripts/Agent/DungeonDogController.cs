@@ -60,6 +60,8 @@ public class DungeonDogController : MonoBehaviour
     private float runAnimationTime;
     private int lastLoggedWaypointIndex = -1;
     private bool setupLogged;
+    private bool initialGroundSnapDone;
+
 
     private static PathfindingAlgorithm globalSelectedAlgorithm = PathfindingAlgorithm.AStar;
     private static bool globalPathVisualisation;
@@ -83,6 +85,7 @@ public class DungeonDogController : MonoBehaviour
     {
         ResolveSceneReferences();
         PlaceAtSearchStart();
+        SnapToGround();
         LogControllerSetup();
     }
 
@@ -125,17 +128,14 @@ public class DungeonDogController : MonoBehaviour
         {
             float distanceToPlayer = Vector3.Distance(GetFlatPosition(transform.position), GetFlatPosition(player.position));
             isChasing = distanceToPlayer > stoppingDistance;
-            bool shouldMove = isChasing;
 
-            if (shouldMove)
+            if (isChasing)
             {
                 pathUpdateTimer += Time.deltaTime;
                 if (pathUpdateTimer >= pathUpdateInterval)
                 {
                     RecalculatePath();
                 }
-
-                FollowPath();
             }
             else
             {
@@ -149,6 +149,8 @@ public class DungeonDogController : MonoBehaviour
                 }
             }
         }
+
+        ApplyMovementAndGravity();
 
         UpdateAnimator();
         previousPosition = transform.position;
@@ -544,47 +546,84 @@ public class DungeonDogController : MonoBehaviour
         }
     }
 
-    private void FollowPath()
+    private void ApplyMovementAndGravity()
     {
-        if (currentPath.Count == 0 || currentPathIndex >= currentPath.Count)
+        Vector3 horizontalDelta = Vector3.zero;
+        Vector3 desiredDirection = Vector3.zero;
+
+        if (isChasing && currentPath.Count > 0 && currentPathIndex < currentPath.Count)
         {
-            return;
+            LogWaypointIndex();
+
+            while (currentPathIndex < currentPath.Count)
+            {
+                Vector3 waypoint = currentPath[currentPathIndex];
+                Vector3 toWaypoint = waypoint - transform.position;
+                toWaypoint.y = 0f;
+
+                if (toWaypoint.sqrMagnitude <= waypointReachDistance * waypointReachDistance)
+                {
+                    currentPathIndex++;
+                    LogWaypointIndex();
+                    continue;
+                }
+
+                desiredDirection = toWaypoint.normalized;
+                horizontalDelta = desiredDirection * moveSpeed * Time.deltaTime;
+                break;
+            }
         }
 
-        LogWaypointIndex();
-
-        while (currentPathIndex < currentPath.Count)
+        bool grounded = characterController != null && characterController.enabled && characterController.isGrounded;
+        if (grounded && verticalVelocity < 0f)
         {
-            Vector3 targetPosition = currentPath[currentPathIndex];
-            targetPosition.y = transform.position.y;
-
-            Vector3 moveDirection = targetPosition - transform.position;
-            moveDirection.y = 0f;
-
-            if (moveDirection.sqrMagnitude <= waypointReachDistance * waypointReachDistance)
-            {
-                currentPathIndex++;
-                LogWaypointIndex();
-                continue;
-            }
-
-            Vector3 normalizedDirection = moveDirection.normalized;
-            transform.position = Vector3.MoveTowards(
-                transform.position,
-                targetPosition,
-                moveSpeed * Time.deltaTime);
-
-            if (normalizedDirection.sqrMagnitude > 0.0001f)
-            {
-                Quaternion targetRotation = Quaternion.LookRotation(normalizedDirection, Vector3.up);
-                transform.rotation = Quaternion.Slerp(
-                    transform.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.deltaTime);
-            }
-
-            return;
+            verticalVelocity = -2f;
         }
+        verticalVelocity += gravity * Time.deltaTime;
+        Vector3 verticalDelta = Vector3.up * (verticalVelocity * Time.deltaTime);
+
+        if (characterController != null && characterController.enabled)
+        {
+            characterController.Move(horizontalDelta + verticalDelta);
+        }
+        else
+        {
+            transform.position += horizontalDelta + verticalDelta;
+        }
+
+        if (desiredDirection.sqrMagnitude > 0.0001f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(desiredDirection, Vector3.up);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                targetRotation,
+                rotationSpeed * Time.deltaTime);
+        }
+    }
+
+    private void SnapToGround()
+    {
+        if (initialGroundSnapDone) return;
+        if (characterController == null) return;
+
+        Vector3 origin = transform.position + Vector3.up * 5f;
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 50f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            characterController.enabled = false;
+            Vector3 p = transform.position;
+            p.y = hit.point.y;
+            transform.position = p;
+            characterController.enabled = true;
+            verticalVelocity = 0f;
+            previousPosition = transform.position;
+            Debug.Log($"[DemonDog] Ground-snapped to y={hit.point.y:F2} on '{hit.collider.name}'.", this);
+        }
+        else
+        {
+            Debug.LogWarning("[DemonDog] SnapToGround found no floor below spawn position.", this);
+        }
+
+        initialGroundSnapDone = true;
     }
 
     private void UpdateAnimator()
