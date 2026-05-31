@@ -18,6 +18,8 @@ public class GraphBuilder : MonoBehaviour
     [Header("Wall Detection")]
     public LayerMask wallLayer;
     public float checkBoxRadius = 1.0f;
+    [Tooltip("Radius used to verify a clear corridor between two cells before wiring an edge. Should match the agent's CharacterController radius.")]
+    public float edgeClearanceRadius = 0.55f;
 
     public Dictionary<Vector3, List<Vector3>> AdjacencyList { get; private set; }
     public bool HasGraph => AdjacencyList != null && AdjacencyList.Count > 0;
@@ -59,14 +61,35 @@ public class GraphBuilder : MonoBehaviour
                 {
                     if (Vector3.Distance(n, existing) < 0.1f)
                     {
-                        AdjacencyList[node].Add(existing);
+                        if (IsEdgeClear(node, existing))
+                        {
+                            AdjacencyList[node].Add(existing);
+                        }
                         break;
                     }
                 }
             }
         }
 
-        Debug.Log($"[GraphBuilder] Built graph on {name}: {AdjacencyList.Count} walkable nodes");
+        int edgeCount = 0;
+        foreach (var list in AdjacencyList.Values) edgeCount += list.Count;
+        Debug.Log($"[GraphBuilder] Built graph on {name}: {AdjacencyList.Count} walkable nodes, {edgeCount} edges");
+    }
+
+    bool IsEdgeClear(Vector3 a, Vector3 b)
+    {
+        Vector3 dir = b - a;
+        float dist = dir.magnitude;
+        if (dist < 0.001f) return true;
+        Vector3 origin = a + Vector3.up * 0.6f;
+        return !Physics.SphereCast(
+            origin,
+            edgeClearanceRadius,
+            dir / dist,
+            out _,
+            dist,
+            wallLayer,
+            QueryTriggerInteraction.Ignore);
     }
 
     public Vector3 GetNearestNode(Vector3 worldPos)

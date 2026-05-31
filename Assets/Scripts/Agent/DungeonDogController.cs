@@ -61,6 +61,8 @@ public class DungeonDogController : MonoBehaviour
     private int lastLoggedWaypointIndex = -1;
     private bool setupLogged;
     private bool initialGroundSnapDone;
+    private Vector3 lastRecalcPlayerPosition;
+    private bool hasRecalcTarget;
 
 
     private static PathfindingAlgorithm globalSelectedAlgorithm = PathfindingAlgorithm.AStar;
@@ -132,9 +134,14 @@ public class DungeonDogController : MonoBehaviour
             if (isChasing)
             {
                 pathUpdateTimer += Time.deltaTime;
-                if (pathUpdateTimer >= pathUpdateInterval)
+                bool playerMovedFar = !hasRecalcTarget ||
+                    Vector3.Distance(GetFlatPosition(player.position), GetFlatPosition(lastRecalcPlayerPosition)) > 1.5f;
+                bool pathExhausted = currentPath.Count == 0 || currentPathIndex >= currentPath.Count;
+                if (pathUpdateTimer >= pathUpdateInterval && (playerMovedFar || pathExhausted))
                 {
                     RecalculatePath();
+                    lastRecalcPlayerPosition = player.position;
+                    hasRecalcTarget = true;
                 }
             }
             else
@@ -142,6 +149,7 @@ public class DungeonDogController : MonoBehaviour
                 currentPath.Clear();
                 currentPathIndex = 0;
                 lastLoggedWaypointIndex = -1;
+                hasRecalcTarget = false;
 
                 if (pathVisualizer != null)
                 {
@@ -525,6 +533,7 @@ public class DungeonDogController : MonoBehaviour
         }
 
         currentPathIndex = GetClosestUsefulPathIndex();
+        SkipWaypointsBehindGoal();
         LogWaypointIndex();
 
         if (pathVisualizer != null)
@@ -582,6 +591,8 @@ public class DungeonDogController : MonoBehaviour
         verticalVelocity += gravity * Time.deltaTime;
         Vector3 verticalDelta = Vector3.up * (verticalVelocity * Time.deltaTime);
 
+        Vector3 preMovePosition = transform.position;
+
         if (characterController != null && characterController.enabled)
         {
             characterController.Move(horizontalDelta + verticalDelta);
@@ -591,13 +602,38 @@ public class DungeonDogController : MonoBehaviour
             transform.position += horizontalDelta + verticalDelta;
         }
 
-        if (desiredDirection.sqrMagnitude > 0.0001f)
+        Vector3 actualHorizontalDelta = transform.position - preMovePosition;
+        actualHorizontalDelta.y = 0f;
+        float actualHorizontalSpeed = actualHorizontalDelta.magnitude / Mathf.Max(Time.deltaTime, 0.0001f);
+        if (actualHorizontalSpeed > 0.1f)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(desiredDirection, Vector3.up);
+            Quaternion targetRotation = Quaternion.LookRotation(actualHorizontalDelta.normalized, Vector3.up);
             transform.rotation = Quaternion.Slerp(
                 transform.rotation,
                 targetRotation,
                 rotationSpeed * Time.deltaTime);
+        }
+    }
+
+    private void SkipWaypointsBehindGoal()
+    {
+        if (player == null || currentPath.Count == 0) return;
+
+        Vector3 selfFlat = GetFlatPosition(transform.position);
+        Vector3 toGoal = GetFlatPosition(player.position) - selfFlat;
+        if (toGoal.sqrMagnitude < 0.01f) return;
+        toGoal.Normalize();
+
+        while (currentPathIndex < currentPath.Count - 1)
+        {
+            Vector3 toWaypoint = GetFlatPosition(currentPath[currentPathIndex]) - selfFlat;
+            if (Vector3.Dot(toWaypoint, toGoal) <= 0f ||
+                toWaypoint.sqrMagnitude < waypointReachDistance * waypointReachDistance)
+            {
+                currentPathIndex++;
+                continue;
+            }
+            break;
         }
     }
 
