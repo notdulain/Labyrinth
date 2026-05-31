@@ -214,8 +214,11 @@ public class PathVisualizer : MonoBehaviour
         lr.receiveShadows = false;
         lr.alignment = LineAlignment.View;
 
-        Shader shader = Shader.Find("Sprites/Default");
+        // Prefer an unlit shader that respects ZTest LEqual so lines are
+        // hidden behind walls instead of drawing on top of them.
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
         if (shader == null) shader = Shader.Find("Unlit/Color");
+        if (shader == null) shader = Shader.Find("Sprites/Default");
         if (shader == null) shader = Shader.Find("Hidden/Internal-Colored");
         Material mat = new Material(shader) { color = color };
         lr.material = mat;
