@@ -5,17 +5,13 @@ using UnityEngine;
 /// Visualizes computed navigation paths for debugging in the labyrinth scenes.
 ///
 /// Press P (default) to toggle visualization on/off.
-/// When enabled, all three pathfinding algorithms run from the same start/goal
-/// and their results are drawn simultaneously in different colours:
-///
-///   BFS      -> Blue
-///   A*       -> Green
-///   Dijkstra -> Yellow
-///
-/// Scene view: coloured spheres + connecting lines drawn via OnDrawGizmos.
-/// Game view: same lines drawn via Debug.DrawLine every frame while active.
-///
-/// Uses MultiAlgorithmPathfinder so the visualized paths match the dog's movement.
+/// - While any dog is chasing, each dog's path is drawn from that dog to the
+///   player as its own colored ribbon (current algorithm color).
+/// - When no dog has an active path, BFS / A* / Dijkstra are run from a
+///   single anchor to the player and drawn together for comparison:
+///       BFS      -> Blue
+///       A*       -> Green
+///       Dijkstra -> Yellow
 /// </summary>
 public class PathVisualizer : MonoBehaviour
 {
@@ -39,25 +35,29 @@ public class PathVisualizer : MonoBehaviour
     [SerializeField] private float lineWidth = 0.15f;
     [SerializeField] private float lineHeightOffset = 0.4f;
 
+    private class DogPathEntry
+    {
+        public List<Vector3> path = new List<Vector3>();
+        public PathfindingAlgorithm algorithm = PathfindingAlgorithm.AStar;
+        public LineRenderer line;
+    }
+
     private bool isVisible;
-    private bool hasCurrentDogPath;
     private float refreshTimer;
-    private PathfindingAlgorithm currentAlgorithm = PathfindingAlgorithm.AStar;
     private List<Vector3> bfsPath = new List<Vector3>();
     private List<Vector3> astarPath = new List<Vector3>();
     private List<Vector3> dijkstraPath = new List<Vector3>();
-    private List<Vector3> currentDogPath = new List<Vector3>();
+    private readonly Dictionary<int, DogPathEntry> dogPaths = new Dictionary<int, DogPathEntry>();
     private MultiAlgorithmPathfinder pathfinder;
 
     private LineRenderer bfsLine;
     private LineRenderer astarLine;
     private LineRenderer dijkstraLine;
-    private LineRenderer dogLine;
 
     private void Start()
     {
         pathfinder = FindObjectOfType<MultiAlgorithmPathfinder>();
-        EnsureLineRenderers();
+        EnsureComparisonLineRenderers();
         ApplyVisibilityToLineRenderers();
         Debug.Log("[PathVisualizer] Ready. Press P to toggle path visualization.");
     }
@@ -75,40 +75,40 @@ public class PathVisualizer : MonoBehaviour
         }
 
         refreshTimer -= Time.deltaTime;
-        if (refreshTimer <= 0f)
+        if (refreshTimer <= 0f && !AnyDogHasPath())
         {
             RefreshAllPaths();
             refreshTimer = refreshInterval;
         }
-
-        if (hasCurrentDogPath)
-        {
-            DrawDebugLines(currentDogPath, GetAlgorithmColor(currentAlgorithm));
-            return;
-        }
-
-        DrawDebugLines(bfsPath, Color.blue);
-        DrawDebugLines(astarPath, Color.green);
-        DrawDebugLines(dijkstraPath, Color.yellow);
     }
 
-    public void SetCurrentPath(List<Vector3> path, PathfindingAlgorithm algorithm)
+    /// <summary>
+    /// Per-dog path push. Each dog should call this with its own unique id
+    /// (e.g. gameObject.GetInstanceID()) so per-dog lines don't overwrite each other.
+    /// </summary>
+    public void SetCurrentPath(int dogId, List<Vector3> path, PathfindingAlgorithm algorithm)
     {
-        currentDogPath = path != null ? new List<Vector3>(path) : new List<Vector3>();
-        currentAlgorithm = algorithm;
-        hasCurrentDogPath = currentDogPath.Count > 0;
-        UpdateLineRenderer(dogLine, currentDogPath, GetAlgorithmColor(currentAlgorithm));
+        if (!dogPaths.TryGetValue(dogId, out DogPathEntry entry))
+        {
+            entry = new DogPathEntry();
+            entry.line = CreateLineRenderer($"_LR_Dog_{dogId}", GetAlgorithmColor(algorithm));
+            dogPaths[dogId] = entry;
+        }
+
+        entry.path = path != null ? new List<Vector3>(path) : new List<Vector3>();
+        entry.algorithm = algorithm;
+        UpdateLineRenderer(entry.line, entry.path, GetAlgorithmColor(algorithm));
         ApplyVisibilityToLineRenderers();
     }
 
     public void SetVisible(bool visible)
     {
         isVisible = visible;
-        EnsureLineRenderers();
+        EnsureComparisonLineRenderers();
         if (isVisible)
         {
             refreshTimer = 0f;
-            if (!hasCurrentDogPath)
+            if (!AnyDogHasPath())
             {
                 RefreshAllPaths();
             }
@@ -124,6 +124,15 @@ public class PathVisualizer : MonoBehaviour
     public void ToggleVisible()
     {
         SetVisible(!isVisible);
+    }
+
+    private bool AnyDogHasPath()
+    {
+        foreach (var entry in dogPaths.Values)
+        {
+            if (entry.path != null && entry.path.Count >= 2) return true;
+        }
+        return false;
     }
 
     private void RefreshAllPaths()
@@ -181,12 +190,11 @@ public class PathVisualizer : MonoBehaviour
             $"Dijkstra: {dijkstraPath.Count} nodes (yellow)");
     }
 
-    private void EnsureLineRenderers()
+    private void EnsureComparisonLineRenderers()
     {
         if (bfsLine == null) bfsLine = CreateLineRenderer("_LR_BFS", Color.blue);
         if (astarLine == null) astarLine = CreateLineRenderer("_LR_AStar", Color.green);
         if (dijkstraLine == null) dijkstraLine = CreateLineRenderer("_LR_Dijkstra", Color.yellow);
-        if (dogLine == null) dogLine = CreateLineRenderer("_LR_Dog", Color.green);
     }
 
     private LineRenderer CreateLineRenderer(string childName, Color color)
@@ -241,27 +249,39 @@ public class PathVisualizer : MonoBehaviour
 
     private void ApplyVisibilityToLineRenderers()
     {
-        if (bfsLine == null || astarLine == null || dijkstraLine == null || dogLine == null) return;
+        if (bfsLine == null || astarLine == null || dijkstraLine == null) return;
 
         if (!isVisible)
         {
             bfsLine.enabled = false;
             astarLine.enabled = false;
             dijkstraLine.enabled = false;
-            dogLine.enabled = false;
+            foreach (var entry in dogPaths.Values)
+            {
+                if (entry.line != null) entry.line.enabled = false;
+            }
             return;
         }
 
-        if (hasCurrentDogPath)
+        bool anyDogPath = AnyDogHasPath();
+
+        if (anyDogPath)
         {
             bfsLine.enabled = false;
             astarLine.enabled = false;
             dijkstraLine.enabled = false;
-            dogLine.enabled = dogLine.positionCount >= 2;
+            foreach (var entry in dogPaths.Values)
+            {
+                if (entry.line == null) continue;
+                entry.line.enabled = entry.line.positionCount >= 2;
+            }
         }
         else
         {
-            dogLine.enabled = false;
+            foreach (var entry in dogPaths.Values)
+            {
+                if (entry.line != null) entry.line.enabled = false;
+            }
             bfsLine.enabled = bfsLine.positionCount >= 2;
             astarLine.enabled = astarLine.positionCount >= 2;
             dijkstraLine.enabled = dijkstraLine.positionCount >= 2;
@@ -342,19 +362,6 @@ public class PathVisualizer : MonoBehaviour
         return null;
     }
 
-    private void DrawDebugLines(List<Vector3> path, Color color)
-    {
-        if (path == null || path.Count < 2)
-        {
-            return;
-        }
-
-        for (int i = 0; i < path.Count - 1; i++)
-        {
-            Debug.DrawLine(path[i], path[i + 1], color);
-        }
-    }
-
     private void OnDrawGizmos()
     {
         if (!isVisible)
@@ -362,9 +369,15 @@ public class PathVisualizer : MonoBehaviour
             return;
         }
 
-        if (hasCurrentDogPath)
+        if (dogPaths.Count > 0)
         {
-            DrawGizmosPath(currentDogPath, GetAlgorithmColor(currentAlgorithm));
+            foreach (var entry in dogPaths.Values)
+            {
+                if (entry.path != null && entry.path.Count >= 2)
+                {
+                    DrawGizmosPath(entry.path, GetAlgorithmColor(entry.algorithm));
+                }
+            }
             return;
         }
 

@@ -153,7 +153,7 @@ public class DungeonDogController : MonoBehaviour
 
                 if (pathVisualizer != null)
                 {
-                    pathVisualizer.SetCurrentPath(currentPath, selectedAlgorithm);
+                    pathVisualizer.SetCurrentPath(GetInstanceID(), currentPath, selectedAlgorithm);
                 }
             }
         }
@@ -538,7 +538,7 @@ public class DungeonDogController : MonoBehaviour
 
         if (pathVisualizer != null)
         {
-            pathVisualizer.SetCurrentPath(currentPath, selectedAlgorithm);
+            pathVisualizer.SetCurrentPath(GetInstanceID(), currentPath, selectedAlgorithm);
         }
 
         if (algorithmChart != null)
