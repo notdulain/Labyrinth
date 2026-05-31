@@ -63,6 +63,7 @@ public class DungeonDogController : MonoBehaviour
     private bool initialGroundSnapDone;
     private Vector3 lastRecalcPlayerPosition;
     private bool hasRecalcTarget;
+    private bool animatorEnsured;
 
 
     private static PathfindingAlgorithm globalSelectedAlgorithm = PathfindingAlgorithm.AStar;
@@ -210,8 +211,15 @@ public class DungeonDogController : MonoBehaviour
             algorithmChart = FindAnyObjectByType<AlgorithmComparison>();
         }
 
-        EnsureAnimatorRunsOnModel();
-        EnsureAnimatorDoesNotUseRootMotion();
+        if (!animatorEnsured)
+        {
+            EnsureAnimatorRunsOnModel();
+            EnsureAnimatorDoesNotUseRootMotion();
+            if (animator != null && animator.runtimeAnimatorController != null)
+            {
+                animatorEnsured = true;
+            }
+        }
     }
 
     private void PlaceAtSearchStart()
@@ -642,14 +650,15 @@ public class DungeonDogController : MonoBehaviour
         if (initialGroundSnapDone) return;
         if (characterController == null) return;
 
+        bool ccWasEnabled = characterController.enabled;
+        characterController.enabled = false;
+
         Vector3 origin = transform.position + Vector3.up * 5f;
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 50f, ~0, QueryTriggerInteraction.Ignore))
         {
-            characterController.enabled = false;
             Vector3 p = transform.position;
             p.y = hit.point.y;
             transform.position = p;
-            characterController.enabled = true;
             verticalVelocity = 0f;
             previousPosition = transform.position;
             Debug.Log($"[DemonDog] Ground-snapped to y={hit.point.y:F2} on '{hit.collider.name}'.", this);
@@ -659,6 +668,7 @@ public class DungeonDogController : MonoBehaviour
             Debug.LogWarning("[DemonDog] SnapToGround found no floor below spawn position.", this);
         }
 
+        characterController.enabled = ccWasEnabled;
         initialGroundSnapDone = true;
     }
 
