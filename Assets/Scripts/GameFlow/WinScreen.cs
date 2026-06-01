@@ -8,6 +8,7 @@ public class WinScreen : MonoBehaviour
 {
     private GUIStyle bigStyle;
     private GUIStyle subStyle;
+    private Texture2D overlayTexture;
 
     private void OnGUI()
     {
@@ -18,7 +19,7 @@ public class WinScreen : MonoBehaviour
             bigStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = 80,
+                fontSize = 56,
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = Color.white },
             };
@@ -30,14 +31,17 @@ public class WinScreen : MonoBehaviour
             };
         }
 
-        // Full-screen black-ish overlay.
-        var overlay = new Texture2D(1, 1);
-        overlay.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.85f));
-        overlay.Apply();
-        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), overlay);
+        if (overlayTexture == null)
+        {
+            overlayTexture = new Texture2D(1, 1);
+            overlayTexture.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.85f));
+            overlayTexture.Apply();
+        }
 
-        GUI.Label(new Rect(0, Screen.height * 0.35f, Screen.width, 120), "YOU WIN", bigStyle);
-        GUI.Label(new Rect(0, Screen.height * 0.55f, Screen.width, 40), "Press Esc to quit.", subStyle);
+        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), overlayTexture);
+
+        GUI.Label(new Rect(0, Screen.height * 0.32f, Screen.width, 140), "YOU WON ALL LEVELS", bigStyle);
+        GUI.Label(new Rect(0, Screen.height * 0.54f, Screen.width, 40), "The labyrinth is complete. Press Esc to quit.", subStyle);
 
         if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
         {
