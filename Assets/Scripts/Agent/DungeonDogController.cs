@@ -66,6 +66,8 @@ public class DungeonDogController : MonoBehaviour
     private bool animatorEnsured;
 
 
+    private const float MinRecalcGap = 0.05f;
+
     private static PathfindingAlgorithm globalSelectedAlgorithm = PathfindingAlgorithm.AStar;
     private static bool globalPathVisualisation;
     private static int lastInputFrame = -1;
@@ -130,7 +132,19 @@ public class DungeonDogController : MonoBehaviour
         if (player != null)
         {
             float distanceToPlayer = Vector3.Distance(GetFlatPosition(transform.position), GetFlatPosition(player.position));
-            isChasing = distanceToPlayer > stoppingDistance;
+
+            // Hysteresis on isChasing so the dog doesn't toggle between Run / Idle every
+            // frame when its distance to the player hovers right at stoppingDistance.
+            float chaseEnter = stoppingDistance * 1.15f;
+            float chaseExit = stoppingDistance * 0.85f;
+            if (isChasing)
+            {
+                if (distanceToPlayer < chaseExit) isChasing = false;
+            }
+            else
+            {
+                if (distanceToPlayer > chaseEnter) isChasing = true;
+            }
 
             if (isChasing)
             {
@@ -138,7 +152,13 @@ public class DungeonDogController : MonoBehaviour
                 bool playerMovedFar = !hasRecalcTarget ||
                     Vector3.Distance(GetFlatPosition(player.position), GetFlatPosition(lastRecalcPlayerPosition)) > 1.5f;
                 bool pathExhausted = currentPath.Count == 0 || currentPathIndex >= currentPath.Count;
-                if (pathUpdateTimer >= pathUpdateInterval && (playerMovedFar || pathExhausted))
+                bool intervalElapsed = pathUpdateTimer >= pathUpdateInterval;
+                bool shouldRecalc = pathExhausted || (intervalElapsed && playerMovedFar);
+                // Path-exhaustion recalcs are immediate (no waiting on pathUpdateInterval)
+                // so the dog doesn't idle for ~0.4 s at the end of every short path. A
+                // small minimum gap prevents runaway recompute if a path resolves in
+                // one frame.
+                if (shouldRecalc && pathUpdateTimer >= MinRecalcGap)
                 {
                     RecalculatePath();
                     lastRecalcPlayerPosition = player.position;
