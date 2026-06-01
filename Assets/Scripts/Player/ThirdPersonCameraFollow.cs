@@ -45,6 +45,9 @@ public class ThirdPersonCameraFollow : MonoBehaviour
         }
 
         warnedMissingTarget = false;
+            return;
+        }
+
         Vector3 lookTarget = target.position + Vector3.up * lookHeight;
         Vector3 normalPosition = target.position - target.forward * distance + Vector3.up * height;
         Vector3 desiredPosition = GetCameraPosition(lookTarget, normalPosition);
