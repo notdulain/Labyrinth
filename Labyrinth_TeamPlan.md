@@ -113,6 +113,13 @@ EdgeSeverer.cs      → exposes void SeverEdge(Vector3 nodeA, Vector3 nodeB)
 - Define the heuristic — **Manhattan distance** for 4-directional movement, **Euclidean** for diagonal
 - Decide movement direction today — lock it in and tell the team
 - Start `PriorityQueue.cs` — implement a min-heap in C#
+- For the first version, keep the intelligent agent very simple. Use a sphere as the visual model.
+- Main goal: prove the custom A* algorithm works by showing the agent finding and following the Player through the maze.
+- Do not add animations, attacks, health, or complex zombie behavior yet.
+- For testing, first test `AStarSearch.cs` using a hardcoded grid/adjacency setup and print:
+  `Path found: (0,0,0) -> (1,0,0) -> (2,0,0)`
+- After that, connect it to `GridManager` and `IntelligentAgent` so the sphere follows the real Player in the Unity maze.
+- **IS-3 Update:** Implement a temporary intelligent agent using a sphere. The agent will use the custom A* search algorithm to calculate the shortest path from its current position to the Player’s current position. The Player remains manually controlled by the user, while the agent continuously recalculates and follows the path in real time. This will act as the first working Intelligent Systems demonstration before replacing the sphere with the final enemy/zombie model.
 
 **Self-Learn Prompt**
 > *"Explain A* search algorithm from scratch. Cover: the open list, closed list, g-cost, h-cost, f-cost, and how the priority queue works. Then show me a clean C# implementation for a grid-based game where nodes are Vector3 positions. Include the priority queue implementation."*

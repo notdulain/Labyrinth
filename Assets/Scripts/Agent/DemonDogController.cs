@@ -1,8 +1,7 @@
-using UnityEngine;
-
 /// <summary>
-/// Controls demon dog agent behavior within the labyrinth scenes.
+/// Backwards-compatible name used by existing prefabs and debug scripts.
+/// The implementation lives in DungeonDogController.
 /// </summary>
-public class DemonDogController : MonoBehaviour
+public class DemonDogController : DungeonDogController
 {
 }
