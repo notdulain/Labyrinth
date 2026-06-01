@@ -54,6 +54,8 @@ public class PathVisualizer : MonoBehaviour
     private LineRenderer astarLine;
     private LineRenderer dijkstraLine;
 
+    private Transform playerTransform;
+
     private void Start()
     {
         pathfinder = FindObjectOfType<MultiAlgorithmPathfinder>();
@@ -80,6 +82,41 @@ public class PathVisualizer : MonoBehaviour
             RefreshAllPaths();
             refreshTimer = refreshInterval;
         }
+    }
+
+    private void LateUpdate()
+    {
+        if (!isVisible) return;
+        if (playerTransform == null) playerTransform = ResolvePlayerTransform();
+        if (playerTransform == null) return;
+
+        Vector3 endpoint = playerTransform.position + Vector3.up * lineHeightOffset;
+        StretchLineToEndpoint(bfsLine, endpoint);
+        StretchLineToEndpoint(astarLine, endpoint);
+        StretchLineToEndpoint(dijkstraLine, endpoint);
+        foreach (var entry in dogPaths.Values)
+        {
+            StretchLineToEndpoint(entry.line, endpoint);
+        }
+    }
+
+    /// <summary>
+    /// Replaces the last position of an enabled line with the player's current
+    /// world position so the visible line terminates exactly at the player
+    /// instead of at the player's nearest graph node.
+    /// </summary>
+    private static void StretchLineToEndpoint(LineRenderer lr, Vector3 endpoint)
+    {
+        if (lr == null || !lr.enabled || lr.positionCount < 1) return;
+        lr.SetPosition(lr.positionCount - 1, endpoint);
+    }
+
+    private Transform ResolvePlayerTransform()
+    {
+        GameObject hero = null;
+        try { hero = GameObject.FindGameObjectWithTag("Player"); } catch (UnityException) { }
+        if (hero == null) hero = GameObject.Find("Player");
+        return hero != null ? hero.transform : null;
     }
 
     /// <summary>

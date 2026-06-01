@@ -154,11 +154,7 @@ public class GraphBuilder : MonoBehaviour
 
     public Vector3 GetNearestNodeReachableTo(Vector3 worldPos, Vector3 anchorWorldPos)
     {
-        HashSet<Vector3> component = GetConnectedComponent(GetNearestNode(anchorWorldPos));
-        if (component.Count == 0)
-            return GetNearestNode(worldPos);
-
-        return GetNearestNodeInSet(worldPos, component, null);
+        return GetNearestNodeReachableTo(worldPos, anchorWorldPos, null);
     }
 
     public Vector3 GetNearestNodeReachableTo(
@@ -170,7 +166,35 @@ public class GraphBuilder : MonoBehaviour
         if (component.Count == 0)
             return GetNearestNode(worldPos);
 
-        return GetNearestNodeInSet(worldPos, component, excludedNodes);
+        Vector3 fallback = GetNearestNodeInSet(worldPos, component, excludedNodes);
+
+        // Prefer the nearest node in the component that has direct line-of-sight
+        // from worldPos (no wall in between). Stops agents from being told to
+        // walk straight into a wall when the chosen node is across a wall.
+        Vector3 origin = worldPos + Vector3.up * 0.6f;
+        Vector3 best = default;
+        float bestDistSqr = float.PositiveInfinity;
+        bool foundLineOfSight = false;
+        foreach (Vector3 node in component)
+        {
+            if (excludedNodes != null && excludedNodes.Contains(node)) continue;
+            float d = (node - worldPos).sqrMagnitude;
+            if (d >= bestDistSqr) continue;
+            Vector3 dir = node - worldPos; dir.y = 0f;
+            float dist = dir.magnitude;
+            if (dist < 0.001f) { best = node; bestDistSqr = d; foundLineOfSight = true; continue; }
+            if (!Physics.SphereCast(origin, edgeClearanceRadius, dir / dist, out _, dist, wallLayer, QueryTriggerInteraction.Ignore))
+            {
+                best = node; bestDistSqr = d; foundLineOfSight = true;
+            }
+        }
+
+        if (foundLineOfSight) return best;
+
+        // No component node is reachable from worldPos without crossing a wall.
+        // Return the agent's own nearest node so the pathfinder fails cleanly
+        // instead of producing a "walk through wall" path.
+        return GetNearestNode(worldPos);
     }
 
     public bool HasPath(Vector3 start, Vector3 goal)

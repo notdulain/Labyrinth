@@ -23,6 +23,10 @@ public class DungeonDogController : MonoBehaviour
     public float gravity = -20f;
     public LayerMask obstacleLayers;
 
+    [Header("Close Range Fallback")]
+    public float directChaseDistance = 5f;
+    public float directStopDistance = 0.45f;
+
     [Header("Pathfinding")]
     public MultiAlgorithmPathfinder pathfinder;
     public PathfindingAlgorithm selectedAlgorithm = PathfindingAlgorithm.AStar;
@@ -65,6 +69,8 @@ public class DungeonDogController : MonoBehaviour
     private bool hasRecalcTarget;
     private bool animatorEnsured;
 
+
+    private const float MinRecalcGap = 0.05f;
 
     private static PathfindingAlgorithm globalSelectedAlgorithm = PathfindingAlgorithm.AStar;
     private static bool globalPathVisualisation;
@@ -130,7 +136,19 @@ public class DungeonDogController : MonoBehaviour
         if (player != null)
         {
             float distanceToPlayer = Vector3.Distance(GetFlatPosition(transform.position), GetFlatPosition(player.position));
-            isChasing = distanceToPlayer > stoppingDistance;
+
+            // Hysteresis on isChasing so the dog doesn't toggle between Run / Idle every
+            // frame when its distance to the player hovers right at stoppingDistance.
+            float chaseEnter = stoppingDistance * 1.15f;
+            float chaseExit = stoppingDistance * 0.85f;
+            if (isChasing)
+            {
+                if (distanceToPlayer < chaseExit) isChasing = false;
+            }
+            else
+            {
+                if (distanceToPlayer > chaseEnter) isChasing = true;
+            }
 
             if (isChasing)
             {
@@ -138,7 +156,13 @@ public class DungeonDogController : MonoBehaviour
                 bool playerMovedFar = !hasRecalcTarget ||
                     Vector3.Distance(GetFlatPosition(player.position), GetFlatPosition(lastRecalcPlayerPosition)) > 1.5f;
                 bool pathExhausted = currentPath.Count == 0 || currentPathIndex >= currentPath.Count;
-                if (pathUpdateTimer >= pathUpdateInterval && (playerMovedFar || pathExhausted))
+                bool intervalElapsed = pathUpdateTimer >= pathUpdateInterval;
+                bool shouldRecalc = pathExhausted || (intervalElapsed && playerMovedFar);
+                // Path-exhaustion recalcs are immediate (no waiting on pathUpdateInterval)
+                // so the dog doesn't idle for ~0.4 s at the end of every short path. A
+                // small minimum gap prevents runaway recompute if a path resolves in
+                // one frame.
+                if (shouldRecalc && pathUpdateTimer >= MinRecalcGap)
                 {
                     RecalculatePath();
                     lastRecalcPlayerPosition = player.position;
@@ -196,6 +220,11 @@ public class DungeonDogController : MonoBehaviour
             if (hero != null) player = hero.transform;
         }
 
+        if (searchStart == null)
+        {
+            searchStart = ResolveSearchStart();
+        }
+
         if (pathfinder == null)
         {
             pathfinder = FindAnyObjectByType<MultiAlgorithmPathfinder>();
@@ -220,6 +249,83 @@ public class DungeonDogController : MonoBehaviour
                 animatorEnsured = true;
             }
         }
+    }
+
+    private Transform ResolveSearchStart()
+    {
+        string dogNumber = GetTrailingNumber(name);
+        if (!string.IsNullOrEmpty(dogNumber))
+        {
+            GameObject numberedSpawn = GameObject.Find($"AgentSpawn_{dogNumber}");
+            if (numberedSpawn != null)
+            {
+                return numberedSpawn.transform;
+            }
+        }
+
+        Transform bestSpawn = null;
+        float bestDistanceSqr = float.PositiveInfinity;
+
+        try
+        {
+            GameObject[] taggedSpawns = GameObject.FindGameObjectsWithTag("AgentSpawn");
+            for (int i = 0; i < taggedSpawns.Length; i++)
+            {
+                ConsiderSearchStartCandidate(taggedSpawns[i].transform, ref bestSpawn, ref bestDistanceSqr);
+            }
+        }
+        catch (UnityException)
+        {
+            // Older scenes may not define the AgentSpawn tag.
+        }
+
+        Transform[] sceneTransforms = FindObjectsByType<Transform>(
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None);
+        for (int i = 0; i < sceneTransforms.Length; i++)
+        {
+            Transform candidate = sceneTransforms[i];
+            if (candidate.name.StartsWith("AgentSpawn"))
+            {
+                ConsiderSearchStartCandidate(candidate, ref bestSpawn, ref bestDistanceSqr);
+            }
+        }
+
+        return bestSpawn;
+    }
+
+    private void ConsiderSearchStartCandidate(
+        Transform candidate,
+        ref Transform bestSpawn,
+        ref float bestDistanceSqr)
+    {
+        if (candidate == null)
+        {
+            return;
+        }
+
+        float distanceSqr = (candidate.position - transform.position).sqrMagnitude;
+        if (distanceSqr < bestDistanceSqr)
+        {
+            bestSpawn = candidate;
+            bestDistanceSqr = distanceSqr;
+        }
+    }
+
+    private static string GetTrailingNumber(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        int start = value.Length;
+        while (start > 0 && char.IsDigit(value[start - 1]))
+        {
+            start--;
+        }
+
+        return start < value.Length ? value.Substring(start) : string.Empty;
     }
 
     private void PlaceAtSearchStart()
@@ -288,9 +394,10 @@ public class DungeonDogController : MonoBehaviour
         }
 
         Transform namedModel = transform.Find("DogModel");
-        if (namedModel != null)
+        if (namedModel != null && namedModel.gameObject.activeInHierarchy)
         {
             modelRoot = namedModel;
+            useProceduralRunAnimation = true;
             return;
         }
 
@@ -590,6 +697,11 @@ public class DungeonDogController : MonoBehaviour
                 break;
             }
         }
+        else if (isChasing && TryGetDirectChaseDirection(out Vector3 directDirection))
+        {
+            desiredDirection = directDirection;
+            horizontalDelta = desiredDirection * moveSpeed * Time.deltaTime;
+        }
 
         bool grounded = characterController != null && characterController.enabled && characterController.isGrounded;
         if (grounded && verticalVelocity < 0f)
@@ -621,6 +733,61 @@ public class DungeonDogController : MonoBehaviour
                 targetRotation,
                 rotationSpeed * Time.deltaTime);
         }
+    }
+
+    private bool TryGetDirectChaseDirection(out Vector3 direction)
+    {
+        direction = Vector3.zero;
+        if (player == null)
+        {
+            return false;
+        }
+
+        Vector3 toPlayer = GetFlatPosition(player.position) - GetFlatPosition(transform.position);
+        float distance = toPlayer.magnitude;
+        if (distance <= directStopDistance || distance > directChaseDistance)
+        {
+            return false;
+        }
+
+        if (!HasDirectLineToPlayer(distance))
+        {
+            return false;
+        }
+
+        direction = toPlayer / distance;
+        return true;
+    }
+
+    private bool HasDirectLineToPlayer(float distance)
+    {
+        LayerMask blockingLayers = obstacleLayers;
+        if (blockingLayers.value == 0 && GraphBuilder.Instance != null)
+        {
+            blockingLayers = GraphBuilder.Instance.wallLayer;
+        }
+
+        if (blockingLayers.value == 0)
+        {
+            return true;
+        }
+
+        Vector3 start = transform.position + Vector3.up * 0.6f;
+        Vector3 toPlayer = GetFlatPosition(player.position) - GetFlatPosition(transform.position);
+        if (toPlayer.sqrMagnitude <= 0.0001f)
+        {
+            return true;
+        }
+
+        float castRadius = characterController != null ? characterController.radius * 0.8f : 0.35f;
+        return !Physics.SphereCast(
+            start,
+            castRadius,
+            toPlayer.normalized,
+            out _,
+            distance,
+            blockingLayers,
+            QueryTriggerInteraction.Ignore);
     }
 
     private void SkipWaypointsBehindGoal()
