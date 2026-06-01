@@ -21,10 +21,10 @@ public class ThirdPersonCameraFollow : MonoBehaviour
     [Header("Overhead Fallback")]
     public float overheadHeight = 7f;
     public float overheadBackOffset = 1f;
-    public float overheadAngle = 70f;
 
     private Vector3 followVelocity;
     private bool usingOverheadView;
+    private bool warnedMissingTarget;
 
     private void Awake()
     {
@@ -35,6 +35,16 @@ public class ThirdPersonCameraFollow : MonoBehaviour
     {
         if (target == null)
         {
+            if (!warnedMissingTarget)
+            {
+                Debug.LogWarning("ThirdPersonCameraFollow target is missing. Assign the Player parent object, not the visual model.", this);
+                warnedMissingTarget = true;
+            }
+
+            return;
+        }
+
+        warnedMissingTarget = false;
             return;
         }
 
@@ -127,9 +137,7 @@ public class ThirdPersonCameraFollow : MonoBehaviour
             return;
         }
 
-        Quaternion lookAtRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
-        Quaternion overheadRotation = Quaternion.Euler(overheadAngle, target.eulerAngles.y, 0f);
-        Quaternion desiredRotation = usingOverheadView ? overheadRotation : lookAtRotation;
+        Quaternion desiredRotation = Quaternion.LookRotation(lookDirection, Vector3.up);
 
         transform.rotation = Quaternion.Lerp(
             transform.rotation,
@@ -149,5 +157,23 @@ public class ThirdPersonCameraFollow : MonoBehaviour
         {
             Debug.LogWarning("Main Camera should not have a Collider. Remove it for stable camera follow.", this);
         }
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        Vector3 lookTarget = target.position + Vector3.up * lookHeight;
+        Vector3 normalPosition = target.position - target.forward * distance + Vector3.up * height;
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(lookTarget, collisionRadius);
+        Gizmos.DrawLine(lookTarget, normalPosition);
+
+        Gizmos.color = usingOverheadView ? Color.yellow : Color.green;
+        Gizmos.DrawWireSphere(transform.position, collisionRadius);
     }
 }

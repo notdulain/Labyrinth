@@ -5,6 +5,7 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
 {
     [Header("Movement")]
     public float moveSpeed = 4f;
+    public float runSpeed = 6f;
     public float rotationSpeed = 12f;
     public float moveAfterTurnAngle = 2f;
 
@@ -14,6 +15,10 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
 
     [Header("Camera")]
     public Transform movementCamera;
+
+    [Header("Animation")]
+    public Animator characterAnimator;
+    public Transform characterModel;
 
     [Header("Obstacle Checks")]
     public LayerMask obstacleLayers = ~0;
@@ -28,6 +33,12 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
     private bool canMoveHorizontally = true;
     private float verticalVelocity;
     private float startingYPosition;
+    private float inputMagnitude;
+    private float currentHorizontalSpeed;
+    private bool isRunning;
+
+    private static readonly int SpeedHash = Animator.StringToHash("Speed");
+    private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
 
     private void Awake()
     {
@@ -39,6 +50,8 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
             movementCamera = Camera.main.transform;
         }
 
+        ResolveAnimationReferences();
+        ConfigureAnimator();
         WarnAboutInvalidComponents();
         WarnAboutObstacleRenderersWithoutColliders();
     }
@@ -49,6 +62,7 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
         ApplyGravity();
         RotateTowardMovement();
         MovePlayer();
+        UpdateAnimator();
         ClampUnexpectedHeight();
     }
 
@@ -62,6 +76,9 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
         {
             input.Normalize();
         }
+
+        inputMagnitude = input.magnitude;
+        isRunning = inputMagnitude > 0.1f && Input.GetKey(KeyCode.LeftShift);
 
         Vector3 cameraForward = Vector3.forward;
         Vector3 cameraRight = Vector3.right;
@@ -96,12 +113,18 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
 
     private void MovePlayer()
     {
-        Vector3 requestedHorizontalVelocity = canMoveHorizontally ? moveDirection * moveSpeed : Vector3.zero;
+        Vector3 previousPosition = transform.position;
+        float targetSpeed = isRunning ? runSpeed : moveSpeed;
+        Vector3 requestedHorizontalVelocity = canMoveHorizontally ? moveDirection * targetSpeed : Vector3.zero;
         Vector3 horizontalVelocity = GetWallSafeHorizontalVelocity(requestedHorizontalVelocity);
         Vector3 velocity = horizontalVelocity;
         velocity.y = verticalVelocity;
 
         characterController.Move(velocity * Time.deltaTime);
+
+        Vector3 horizontalDelta = transform.position - previousPosition;
+        horizontalDelta.y = 0f;
+        currentHorizontalSpeed = horizontalDelta.magnitude / Mathf.Max(Time.deltaTime, 0.0001f);
     }
 
     private Vector3 GetWallSafeHorizontalVelocity(Vector3 requestedVelocity)
@@ -204,6 +227,60 @@ public class PlayerController : MonoBehaviour, IPlayerMotionResettable
         canMoveHorizontally = true;
         verticalVelocity = 0f;
         startingYPosition = transform.position.y;
+        inputMagnitude = 0f;
+        currentHorizontalSpeed = 0f;
+        isRunning = false;
+
+        if (characterAnimator != null)
+        {
+            characterAnimator.SetFloat(SpeedHash, 0f);
+            characterAnimator.SetBool(IsMovingHash, false);
+        }
+    }
+
+    private void ResolveAnimationReferences()
+    {
+        if (characterModel == null)
+        {
+            Transform slot = transform.Find("CharacterModelSlot");
+            if (slot != null && slot.childCount > 0)
+            {
+                characterModel = slot.GetChild(0);
+            }
+        }
+
+        if (characterAnimator == null)
+        {
+            characterAnimator = characterModel != null
+                ? characterModel.GetComponentInChildren<Animator>()
+                : GetComponentInChildren<Animator>();
+        }
+    }
+
+    private void ConfigureAnimator()
+    {
+        if (characterAnimator == null)
+        {
+            return;
+        }
+
+        characterAnimator.applyRootMotion = false;
+        characterAnimator.enabled = true;
+        characterAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+    }
+
+    private void UpdateAnimator()
+    {
+        if (characterAnimator == null)
+        {
+            return;
+        }
+
+        bool isMoving = inputMagnitude > 0.1f && currentHorizontalSpeed > 0.01f;
+        float normalizedSpeed = isMoving ? (isRunning ? 1f : 0.5f) : 0f;
+
+        characterAnimator.SetFloat(SpeedHash, normalizedSpeed);
+        characterAnimator.SetBool(IsMovingHash, isMoving);
     }
 
     private void WarnAboutInvalidComponents()
