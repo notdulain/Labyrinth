@@ -1,16 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-/// <summary>
-/// Performs breadth-first search over the labyrinth graph.
-///
-/// BFS explores nodes level by level (nearest first) using a Queue.
-/// It finds the shortest path measured by number of hops (nodes visited),
-/// not by distance weight — making it faster than Dijkstra on uniform grids.
-///
-/// Time Complexity : O(V + E)  where V = nodes, E = edges
-/// Space Complexity: O(V)      for the visited set and cameFrom table
-/// </summary>
 public class BFSSearch : MonoBehaviour
 {
     public static BFSSearch Instance { get; private set; }
@@ -26,26 +16,19 @@ public class BFSSearch : MonoBehaviour
 
         Instance = this;
     }
-
-    /// <summary>
-    /// Finds the shortest path (by hop count) from start to goal using BFS.
-    /// Returns an empty list when no path exists.
-    /// </summary>
-    /// <param name="graph">Adjacency list built by GraphBuilder.</param>
-    /// <param name="start">World-space position of the start node.</param>
-    /// <param name="goal">World-space position of the goal node.</param>
+    //This part is the start of the BFS pathfinding method.
     public List<Vector3> FindPath(
         Dictionary<Vector3, List<Vector3>> graph,
         Vector3 start,
         Vector3 goal)
     {
-        // --- Guard checks ---
+        //It checks whether the input data is valid before running BFS
         if (graph == null || graph.Count == 0)
         {
             Debug.LogWarning("[BFSSearch] Graph is empty or null.");
             return new List<Vector3>();
         }
-
+       //Check whether start and goal are inside the graph
         if (!graph.ContainsKey(start) || !graph.ContainsKey(goal))
         {
             Debug.LogWarning("[BFSSearch] Start or goal node not found in graph.");
@@ -60,16 +43,16 @@ public class BFSSearch : MonoBehaviour
 
         // --- BFS Core ---
 
-        // Queue holds nodes to explore next (FIFO — first in, first out)
+        //frontier is the waiting list of nodes to check.
         var frontier = new Queue<Vector3>();
 
-        // visited tracks nodes we have already seen so we don't revisit them
+        //visited stores nodes that BFS has already seen don't revisit them
         var visited = new HashSet<Vector3>();
 
-        // cameFrom records how we got to each node — used to reconstruct the path at the end
+        //This remembers the path history.
         var cameFrom = new Dictionary<Vector3, Vector3>();
 
-        // Begin at the start node
+        //begin at the start node
         frontier.Enqueue(start);
         visited.Add(start);
 
@@ -89,29 +72,25 @@ public class BFSSearch : MonoBehaviour
             {
                 continue;
             }
-
+            //This goes through each neighbour of the current node.
             foreach (Vector3 next in neighbors)
             {
-                // Only process this neighbour if we haven't visited it yet
+                //If already visited, skip it.
                 if (visited.Contains(next))
                 {
                     continue;
                 }
 
-                visited.Add(next);
-                cameFrom[next] = current;   // remember how we got here
-                frontier.Enqueue(next);     // schedule it to be explored
+                visited.Add(next);          //Mark this neighbour as visited.
+                cameFrom[next] = current;   //remember how we got this neighbour.
+                frontier.Enqueue(next);     //schedule it to be explored
             }
         }
 
-        // If the goal was never recorded in cameFrom, no path exists
+        //After BFS finishes, this method uses cameFrom to rebuild the final path.
         return ReconstructPath(cameFrom, start, goal);
     }
-
-    /// <summary>
-    /// Walks backwards through cameFrom from goal → start, then reverses to get
-    /// the correct start → goal order.
-    /// </summary>
+    //It rebuilds the path from the cameFrom map, tracing backwards from the goal to the start.
     private List<Vector3> ReconstructPath(
         Dictionary<Vector3, Vector3> cameFrom,
         Vector3 start,
@@ -119,27 +98,23 @@ public class BFSSearch : MonoBehaviour
     {
         if (!cameFrom.ContainsKey(goal))
         {
-            // Goal was never reached
+            //if goal is not inside cameFrom, it means no path was found.
             return new List<Vector3>();
         }
-
+        //this builds the path backwards from goal to start
         var path = new List<Vector3> { goal };
         Vector3 current = goal;
-
+        //keep tracing backwards until we hit the start node
         while (current != start)
         {
             current = cameFrom[current];
             path.Add(current);
         }
 
-        path.Reverse();   // we built it backwards, so flip it
+        path.Reverse(); 
         return path;
     }
-
-    /// <summary>
-    /// Right-click this component in the Unity Inspector and choose
-    /// "Run BFS Hardcoded Test" to verify the algorithm without the full scene.
-    /// </summary>
+    //This part is a small test function to check whether your BFS algorithm works without using the full Unity maze.
     [ContextMenu("Run BFS Hardcoded Test")]
     public void RunHardcodedTest()
     {
@@ -148,12 +123,12 @@ public class BFSSearch : MonoBehaviour
         //                                 D
         var graph = new Dictionary<Vector3, List<Vector3>>();
 
-        Vector3 a = new Vector3(0f, 0f, 0f);
+        Vector3 a = new Vector3(0f, 0f, 0f); //These create 4 nodes in world space.
         Vector3 b = new Vector3(1f, 0f, 0f);
         Vector3 c = new Vector3(2f, 0f, 0f);
         Vector3 d = new Vector3(1f, 0f, 1f);
 
-        graph[a] = new List<Vector3> { b };
+        graph[a] = new List<Vector3> { b }; //This builds the connections (edges)
         graph[b] = new List<Vector3> { a, c, d };
         graph[c] = new List<Vector3> { b };
         graph[d] = new List<Vector3> { b };

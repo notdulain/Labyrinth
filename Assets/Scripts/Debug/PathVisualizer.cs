@@ -13,6 +13,7 @@ using UnityEngine;
 ///       A*       -> Green
 ///       Dijkstra -> Yellow
 /// </summary>
+// This script shows the paths of all three algorithms on the screen.
 public class PathVisualizer : MonoBehaviour
 {
     [Header("Hotkey")]
@@ -54,6 +55,8 @@ public class PathVisualizer : MonoBehaviour
     private LineRenderer astarLine;
     private LineRenderer dijkstraLine;
 
+    // This runs when the game starts. It sets up the lines and finds the main pathfinder.
+    //Finds the pathfinding controller, make line renderers, Prints a ready message
     private void Start()
     {
         pathfinder = FindObjectOfType<MultiAlgorithmPathfinder>();
@@ -62,6 +65,8 @@ public class PathVisualizer : MonoBehaviour
         Debug.Log("[PathVisualizer] Ready. Press P to toggle path visualization.");
     }
 
+    // This runs every frame. It checks if you press 'P' to toggle the lines, and updates paths.
+    //I check whether the toggle key is pressed, stop processing and refresh the algorithm paths.
     private void Update()
     {
         if (handleInput && Input.GetKeyDown(toggleKey))
@@ -82,10 +87,9 @@ public class PathVisualizer : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Per-dog path push. Each dog should call this with its own unique id
-    /// (e.g. gameObject.GetInstanceID()) so per-dog lines don't overwrite each other.
-    /// </summary>
+    // This receives a path from a specific dog and draws it on the screen.
+    //The visualizer stores the path using the dog’s unique ID, creates a line renderer
+    //and applies the correct algorithm color. (BFS-blue, A*-green, Dijkstra-yellow)
     public void SetCurrentPath(int dogId, List<Vector3> path, PathfindingAlgorithm algorithm)
     {
         if (!dogPaths.TryGetValue(dogId, out DogPathEntry entry))
@@ -101,6 +105,7 @@ public class PathVisualizer : MonoBehaviour
         ApplyVisibilityToLineRenderers();
     }
 
+    // This turns all path lines on or off.
     public void SetVisible(bool visible)
     {
         isVisible = visible;
@@ -121,11 +126,16 @@ public class PathVisualizer : MonoBehaviour
         }
     }
 
+    // This toggles showing or hiding the lines.
+    //When enabled, it prepares the line renderers,
+    //refreshes comparison paths if no dog path is active, and shows the correct lines.
+    //When disabled, it hides all path lines.
     public void ToggleVisible()
     {
         SetVisible(!isVisible);
     }
 
+    // This checks if any dog is currently pathfinding.
     private bool AnyDogHasPath()
     {
         foreach (var entry in dogPaths.Values)
@@ -135,6 +145,9 @@ public class PathVisualizer : MonoBehaviour
         return false;
     }
 
+    // This runs all three search algorithms and draws their paths in Blue, Green, and Yellow.
+    //runs all three pathfinding algorithms using MultiAlgorithmPathfinder
+    //returned paths separately
     private void RefreshAllPaths()
     {
         if (pathfinder == null)
@@ -190,6 +203,8 @@ public class PathVisualizer : MonoBehaviour
             $"Dijkstra: {dijkstraPath.Count} nodes (yellow)");
     }
 
+    // This makes sure the Blue, Green, and Yellow line renderers exist.
+    //If any one is missing, it creates it with the correct name and color.”
     private void EnsureComparisonLineRenderers()
     {
         if (bfsLine == null) bfsLine = CreateLineRenderer("_LR_BFS", Color.blue);
@@ -197,6 +212,7 @@ public class PathVisualizer : MonoBehaviour
         if (dijkstraLine == null) dijkstraLine = CreateLineRenderer("_LR_Dijkstra", Color.yellow);
     }
 
+    // This creates a LineRenderer object in Unity with a custom color.
     private LineRenderer CreateLineRenderer(string childName, Color color)
     {
         Transform existing = transform.Find(childName);
@@ -228,6 +244,9 @@ public class PathVisualizer : MonoBehaviour
         return lr;
     }
 
+    //This takes the path nodes and updates the position of the screen line.
+    //updates a Unity LineRenderer using the path nodes
+    //adjust the Y height of the line so it sits just above the floor tiles
     private void UpdateLineRenderer(LineRenderer lr, List<Vector3> path, Color color)
     {
         if (lr == null) return;
@@ -250,6 +269,10 @@ public class PathVisualizer : MonoBehaviour
         }
     }
 
+    //This shows or hides different lines depending on whether debug mode is on.
+    //When active: shows the three comparison lines and all dog lines. 
+    //When inactive: hides all lines. 
+    //If at least one dog has an active path: hides comparison lines and shows only dog lines.
     private void ApplyVisibilityToLineRenderers()
     {
         if (bfsLine == null || astarLine == null || dijkstraLine == null) return;
@@ -365,6 +388,9 @@ public class PathVisualizer : MonoBehaviour
         return null;
     }
 
+    //This draws spheres and lines inside the Unity Editor's Scene view for debugging.
+    //This part uses Unity Gizmos to draw debug paths in the Scene view.
+    //It draws spheres at each path node and lines between nodes.
     private void OnDrawGizmos()
     {
         if (!isVisible)
